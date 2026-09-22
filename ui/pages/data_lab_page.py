@@ -3,13 +3,18 @@ from pathlib import Path
 import pandas as pd
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
-    QLabel, QPlainTextEdit, QPushButton, QScrollArea, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QButtonGroup, QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+    QHeaderView, QLabel, QListView, QPlainTextEdit, QPushButton, QScrollArea,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from common.theme import PREVIEW_COLUMN_COUNT, PREVIEW_ROW_COUNT, SPACE_12, SPACE_16, SPACE_24, TABLE_HEADER_HEIGHT
+from common.theme import (
+    COLOR_OFF_BLACK, COLOR_OFF_WHITE, COLOR_PRIMARY, COLOR_SECONDARY,
+    PREVIEW_COLUMN_COUNT, PREVIEW_ROW_COUNT, SPACE_SM, SPACE_MD, TABLE_HEADER_HEIGHT,
+)
 from ml.data_loader import (
     get_builtin_target, get_sklearn_target, get_sklearn_target_names,
     load_builtin_dataset, load_local_csv, load_sklearn_dataset,
@@ -36,14 +41,55 @@ CONCEPT_DESCRIPTIONS = {
 }
 
 
+# QPainter: Widget 위에 직접 선이나 도형을 그리는 Qt 객체
+class ChevronComboBox(QComboBox):
+    # ComboBox의 Dropdown View를 구성
+    def __init__(self):
+        super().__init__()
+
+        view = QListView()
+        view.setFrameShape(QFrame.Shape.NoFrame)
+        self.setView(view)
+
+        palette = view.palette()
+        palette.setColor(QPalette.ColorRole.Base, QColor(COLOR_OFF_WHITE))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(COLOR_OFF_WHITE))
+        palette.setColor(QPalette.ColorRole.Text, QColor(COLOR_OFF_BLACK))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(COLOR_SECONDARY))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(COLOR_OFF_BLACK))
+        view.setPalette(palette)
+
+    # 기본 ComboBox를 그린 뒤 오른쪽에 아래 방향 꺾쇠를 표시
+    def paintEvent(self, event):
+        super().paintEvent(event)
+
+        if not self.isEnabled():
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        pen = QPen(QColor(COLOR_OFF_BLACK))
+        pen.setWidthF(1.5)
+        painter.setPen(pen)
+
+        center_x = self.width() - 16
+        center_y = self.height() / 2
+
+        path = QPainterPath()
+        path.moveTo(QPointF(center_x - 4, center_y - 2))
+        path.lineTo(QPointF(center_x, center_y + 2))
+        path.lineTo(QPointF(center_x + 4, center_y - 2))
+
+        painter.drawPath(path)
+
+
 class DataLabPage(QWidget):
     # Data Lab의 기본 상태를 만들고 UI를 구성
     def __init__(self):
         super().__init__()
 
         self.dataframe = pd.DataFrame()
-
-        # Data Lab에 직접 들어왔을 때 사용할 기본 Dataset Source
         self.data_source = "builtin"
         self.dataset_name = ""
         self.selected_concept = ""
@@ -56,22 +102,24 @@ class DataLabPage(QWidget):
         page_layout = QVBoxLayout(self)
         page_layout.setContentsMargins(0, 0, 0, 0)
 
-        # QScrollArea: 내용이 화면보다 길어질 때 Scroll로 확인할 수 있는 Widget
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        page_layout.addWidget(scroll_area)
+        # QScrollArea: Page Title을 포함한 전체 Data Lab을 Scroll
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        page_layout.addWidget(self.scroll_area)
 
         content = QWidget()
-        scroll_area.setWidget(content)
+        self.scroll_area.setWidget(content)
 
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_16)
-        layout.setSpacing(SPACE_24)
+        layout.setContentsMargins(SPACE_SM, SPACE_SM, SPACE_SM, SPACE_SM)
+        layout.setSpacing(SPACE_MD)
 
-        layout.addWidget(QLabel("Data Lab — 머신러닝 기초"))
+        page_title = QLabel("Data Lab - 데이터 탐색")
+        page_title.setObjectName("pageTitle")
+        layout.addWidget(page_title)
 
         self._create_dataset_source(layout)
         self._create_data_section(layout)
@@ -83,12 +131,14 @@ class DataLabPage(QWidget):
 
     # Dataset Source 선택 영역을 구성
     def _create_dataset_source(self, layout: QVBoxLayout):
-        layout.addWidget(QLabel("Dataset Source"))
+        section_title = QLabel("Dataset Source")
+        section_title.setObjectName("sectionTitle")
+        layout.addWidget(section_title)
 
         source_layout = QHBoxLayout()
-        source_layout.setSpacing(SPACE_12)
+        source_layout.setSpacing(SPACE_SM)
 
-        self.source_combo = QComboBox()
+        self.source_combo = ChevronComboBox()
         self.source_combo.setObjectName("dataControl")
         self.source_combo.addItem("Built-in", "builtin")
         self.source_combo.addItem("scikit-learn", "sklearn")
@@ -96,7 +146,7 @@ class DataLabPage(QWidget):
         self.source_combo.currentIndexChanged.connect(self._change_data_source)
         source_layout.addWidget(self.source_combo, 2)
 
-        self.dataset_combo = QComboBox()
+        self.dataset_combo = ChevronComboBox()
         self.dataset_combo.setObjectName("dataControl")
         source_layout.addWidget(self.dataset_combo, 6)
 
@@ -114,44 +164,35 @@ class DataLabPage(QWidget):
     # Data Preview와 Dataset Information을 2열로 구성
     def _create_data_section(self, layout: QVBoxLayout):
         data_layout = QGridLayout()
-        data_layout.setSpacing(SPACE_24)
+        data_layout.setSpacing(SPACE_MD)
 
-        preview_header = QHBoxLayout()
-        preview_header.addWidget(QLabel("Data Preview"))
+        preview_title = QLabel("Data Preview")
+        preview_title.setObjectName("sectionTitle")
+        data_layout.addWidget(preview_title, 0, 0)
 
-        self.preview_guide_label = QLabel(
-            "최대 10개 Sample(Row)과 5개 Column만 미리보기하며 실제 학습에는 전체 Dataset을 사용합니다."
-        )
-        self.preview_guide_label.setObjectName("smallText")
-        self.preview_guide_label.setWordWrap(True)
-        preview_header.addWidget(self.preview_guide_label, 1)
+        information_title = QLabel("Dataset Information")
+        information_title.setObjectName("sectionTitle")
+        data_layout.addWidget(information_title, 0, 1)
 
-        data_layout.addLayout(preview_header, 0, 0)
-        data_layout.addWidget(QLabel("Dataset Information"), 0, 1)
-
-        # QTableWidget: 행과 열 형태의 데이터를 화면에 표시하는 Table Widget
         self.data_table = QTableWidget()
         self.data_table.setObjectName("dataPreviewTable")
         self.data_table.setMinimumHeight(320)
         self.data_table.verticalHeader().setVisible(False)
+        self.data_table.horizontalHeader().setVisible(False)
 
-        # QAbstractItemView.EditTrigger.NoEditTriggers: Table의 Cell을 사용자가 직접 수정하지 못하게 설정
+        table_palette = self.data_table.palette()
+        table_palette.setColor(QPalette.ColorRole.Base, QColor(COLOR_OFF_WHITE))
+        table_palette.setColor(QPalette.ColorRole.AlternateBase, QColor(COLOR_OFF_WHITE))
+        self.data_table.setPalette(table_palette)
+        self.data_table.viewport().setAutoFillBackground(True)
+
         self.data_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
-        # QHeaderView.Stretch: 현재 Table 너비에 맞춰 Column 너비를 균등하게 조절
         header = self.data_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-
-        # setHighlightSections(): Cell 선택 시 해당 Header가 강조되는 기능 설정
         header.setHighlightSections(False)
-
-        # Header Text를 가운데 정렬
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # 긴 Column 이름과 dtype을 여러 줄로 표시할 수 있도록 Header 높이를 확보
         header.setFixedHeight(TABLE_HEADER_HEIGHT)
-
-        # ElideNone: Header 문자열을 ...으로 줄이지 않고 그대로 표시
         header.setTextElideMode(Qt.TextElideMode.ElideNone)
 
         self.data_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -160,18 +201,18 @@ class DataLabPage(QWidget):
         information_frame = QFrame()
         information_layout = QVBoxLayout(information_frame)
         information_layout.setContentsMargins(0, 0, 0, 0)
-        information_layout.setSpacing(SPACE_12)
+        information_layout.setSpacing(SPACE_SM)
 
         self.summary_label = QLabel("Samples    -\nColumns    -\nMissing    -")
         self.summary_label.setObjectName("smallText")
         information_layout.addWidget(self.summary_label)
 
-        information_layout.addWidget(QLabel("Target"))
+        target_title = QLabel("Target")
+        target_title.setObjectName("sectionTitle")
+        information_layout.addWidget(target_title)
 
-        self.target_combo = QComboBox()
+        self.target_combo = ChevronComboBox()
         self.target_combo.setObjectName("dataControl")
-
-        # currentIndexChanged: QComboBox의 선택 위치가 바뀌었을 때 발생하는 기본 Signal
         self.target_combo.currentIndexChanged.connect(self._update_target_info)
         information_layout.addWidget(self.target_combo)
 
@@ -180,7 +221,9 @@ class DataLabPage(QWidget):
         self.target_guide_label.setWordWrap(True)
         information_layout.addWidget(self.target_guide_label)
 
-        information_layout.addWidget(QLabel("Feature 후보"))
+        feature_title = QLabel("Feature 후보")
+        feature_title.setObjectName("sectionTitle")
+        information_layout.addWidget(feature_title)
 
         self.feature_label = QLabel("-")
         self.feature_label.setObjectName("smallText")
@@ -206,16 +249,18 @@ class DataLabPage(QWidget):
 
     # Visualization 영역을 구성
     def _create_visualization_section(self, layout: QVBoxLayout):
-        layout.addWidget(QLabel("Visualization"))
+        section_title = QLabel("Visualization")
+        section_title.setObjectName("sectionTitle")
+        layout.addWidget(section_title)
 
         controls = QHBoxLayout()
-        controls.setSpacing(SPACE_12)
+        controls.setSpacing(SPACE_SM)
 
         graph_label = QLabel("Graph")
         graph_label.setObjectName("smallText")
         controls.addWidget(graph_label)
 
-        self.graph_type_combo = QComboBox()
+        self.graph_type_combo = ChevronComboBox()
         self.graph_type_combo.setObjectName("dataControl")
         self.graph_type_combo.addItems(["Histogram", "Scatter Plot", "Box Plot"])
         self.graph_type_combo.currentTextChanged.connect(self._update_graph_controls)
@@ -225,7 +270,7 @@ class DataLabPage(QWidget):
         x_label.setObjectName("smallText")
         controls.addWidget(x_label)
 
-        self.x_column_combo = QComboBox()
+        self.x_column_combo = ChevronComboBox()
         self.x_column_combo.setObjectName("dataControl")
         self.x_column_combo.currentTextChanged.connect(self._update_concept_detail)
         controls.addWidget(self.x_column_combo, 1)
@@ -234,7 +279,7 @@ class DataLabPage(QWidget):
         self.y_label.setObjectName("smallText")
         controls.addWidget(self.y_label)
 
-        self.y_column_combo = QComboBox()
+        self.y_column_combo = ChevronComboBox()
         self.y_column_combo.setObjectName("dataControl")
         self.y_column_combo.currentTextChanged.connect(self._update_concept_detail)
         controls.addWidget(self.y_column_combo, 1)
@@ -246,22 +291,28 @@ class DataLabPage(QWidget):
 
         layout.addLayout(controls)
 
-        # Figure: Matplotlib에서 전체 그래프 영역을 나타내는 객체
-        self.figure = Figure()
-
-        # FigureCanvasQTAgg: Matplotlib Figure를 PySide6 Widget 안에 표시하는 Canvas
+        self.figure = Figure(facecolor=COLOR_OFF_WHITE)
         self.canvas = FigureCanvasQTAgg(self.figure)
         self.canvas.setMinimumHeight(300)
+
+        # installEventFilter(): Canvas에서 발생하는 Wheel Event를 Page Scroll로 전달하기 위해 등록
+        self.canvas.installEventFilter(self)
+
+        # 그래프를 그리기 전에는 빈 Canvas를 표시하지 않음
+        self.canvas.hide()
+
         layout.addWidget(self.canvas)
 
         self._update_graph_controls()
 
-    # Concept Button과 Concept Detail, Python Code 영역을 구성
+    # Concept Button과 Detail 영역을 구성
     def _create_concept_section(self, layout: QVBoxLayout):
-        layout.addWidget(QLabel("Concept"))
+        section_title = QLabel("Concept")
+        section_title.setObjectName("sectionTitle")
+        layout.addWidget(section_title)
 
         button_layout = QGridLayout()
-        button_layout.setSpacing(SPACE_12)
+        button_layout.setSpacing(SPACE_SM)
 
         concepts = [
             "Sample", "Feature", "Target", "Class",
@@ -270,32 +321,38 @@ class DataLabPage(QWidget):
             "2D Array", "shape", "indexing",
         ]
 
+        # QButtonGroup: Concept Button 중 하나만 선택된 상태로 유지
+        self.concept_button_group = QButtonGroup(self)
+        self.concept_button_group.setExclusive(True)
+
         for index, concept in enumerate(concepts):
             button = QPushButton(concept)
             button.setObjectName("conceptButton")
+            button.setCheckable(True)
             button.clicked.connect(lambda checked=False, name=concept: self._show_concept(name))
 
-            row = index // 4
-            column = index % 4
-            button_layout.addWidget(button, row, column)
+            self.concept_button_group.addButton(button)
+            button_layout.addWidget(button, index // 4, index % 4)
 
         layout.addLayout(button_layout)
 
         detail_layout = QGridLayout()
-        detail_layout.setSpacing(SPACE_24)
+        detail_layout.setSpacing(SPACE_MD)
 
-        detail_layout.addWidget(QLabel("Concept Detail"), 0, 0)
-        detail_layout.addWidget(QLabel("Python Code"), 0, 1)
+        concept_detail_title = QLabel("Concept Detail")
+        concept_detail_title.setObjectName("sectionTitle")
+        detail_layout.addWidget(concept_detail_title, 0, 0)
+
+        code_title = QLabel("Python Code")
+        code_title.setObjectName("sectionTitle")
+        detail_layout.addWidget(code_title, 0, 1)
 
         self.concept_description_label = QLabel("확인할 개념을 선택하세요.")
-
-        # setWordWrap(): 긴 문장을 Widget 너비에 맞게 자동 줄바꿈
         self.concept_description_label.setWordWrap(True)
         self.concept_description_label.setObjectName("smallText")
         self.concept_description_label.setMinimumHeight(150)
         detail_layout.addWidget(self.concept_description_label, 1, 0)
 
-        # QPlainTextEdit: 여러 줄의 Text를 표시하거나 입력하는 Widget
         self.code_view = QPlainTextEdit()
         self.code_view.setObjectName("codeView")
         self.code_view.setReadOnly(True)
@@ -305,8 +362,21 @@ class DataLabPage(QWidget):
 
         detail_layout.setColumnStretch(0, 1)
         detail_layout.setColumnStretch(1, 1)
-
         layout.addLayout(detail_layout)
+
+    # Matplotlib Canvas 위에서도 Mouse Wheel로 Page를 Scroll
+    def eventFilter(self, watched, event):
+        if watched is self.canvas and event.type() == QEvent.Type.Wheel:
+            pixel_delta = event.pixelDelta().y()
+            angle_delta = event.angleDelta().y()
+            delta = pixel_delta if pixel_delta else angle_delta
+
+            scroll_bar = self.scroll_area.verticalScrollBar()
+            scroll_bar.setValue(scroll_bar.value() - delta)
+
+            return True
+
+        return super().eventFilter(watched, event)
 
     # Dataset Source ComboBox에서 선택한 Source를 적용
     def _change_data_source(self, _index: int):
@@ -318,7 +388,6 @@ class DataLabPage(QWidget):
     # 선택한 Dataset Source에 맞게 Dataset 선택 UI를 변경
     def set_data_source(self, source: str):
         self.data_source = source
-
         source_index = self.source_combo.findData(source)
 
         if source_index >= 0:
@@ -339,7 +408,6 @@ class DataLabPage(QWidget):
             self.load_button.setText("불러오기")
 
         elif source == "sklearn":
-            # addItem(): 첫 번째 값은 화면에 표시하고 두 번째 값은 실제 데이터로 저장
             self.dataset_combo.addItem("Iris (붓꽃 다중 분류)", "Iris")
             self.dataset_combo.addItem("Wine (와인 다중 분류)", "Wine")
             self.dataset_combo.addItem("Breast Cancer (유방암 이진 분류)", "Breast Cancer")
@@ -372,7 +440,6 @@ class DataLabPage(QWidget):
 
     # Local CSV 파일을 선택해 DataFrame으로 저장
     def _select_csv(self):
-        # QFileDialog: 사용자가 파일을 선택할 수 있는 Dialog
         file_path, _ = QFileDialog.getOpenFileName(self, "CSV 파일 선택", "", "CSV Files (*.csv)")
 
         if not file_path:
@@ -387,21 +454,22 @@ class DataLabPage(QWidget):
     def _show_load_result(self):
         summary = get_data_summary(self.dataframe)
 
-        self.status_label.setText(
-            f"Load 완료: {summary['sample_count']} Samples / {summary['column_count']} Columns"
-        )
-
+        self.status_label.setText(f"Load 완료: {summary['sample_count']} Samples / {summary['column_count']} Columns")
         self.summary_label.setText(
             f"Samples    {summary['sample_count']}\n"
             f"Columns    {summary['column_count']}\n"
             f"Missing    {summary['missing_count']}"
         )
 
+        # Dataset을 새로 불러오면 이전 그래프를 제거하고 다시 숨김
+        self.figure.clear()
+        self.canvas.hide()
+
         self._configure_target()
         self._update_graph_columns()
         self._show_dataframe()
 
-    # Dataset Source에 따라 Target을 고정하거나 사용자가 선택할 수 있게 구성
+    # Dataset Source에 따라 Target을 고정하거나 선택 가능하게 구성
     def _configure_target(self):
         self.target_combo.blockSignals(True)
         self.target_combo.clear()
@@ -418,7 +486,6 @@ class DataLabPage(QWidget):
                 self.target_combo.addItem(target, target)
                 self.target_guide_label.setText("이 Dataset의 학습 목적에 맞게 Target이 고정되어 있습니다.")
 
-            # setEnabled(): Widget을 사용자가 조작할 수 있는지 설정
             self.target_combo.setEnabled(False)
 
         elif self.data_source == "sklearn":
@@ -452,8 +519,6 @@ class DataLabPage(QWidget):
 
         target = self._get_target_column()
         feature_columns = get_feature_columns(self.dataframe, target)
-
-        # join(): 문자열 목록을 지정한 구분자로 하나의 문자열로 연결
         self.feature_label.setText(", ".join(feature_columns))
 
         if target is None:
@@ -464,9 +529,7 @@ class DataLabPage(QWidget):
             target_text = f"Target 고유값 수    {unique_count}"
 
             if self.class_names and target == "target":
-                class_text = "\n".join(
-                    f"{index} → {class_name}" for index, class_name in enumerate(self.class_names)
-                )
+                class_text = "\n".join(f"{index} → {class_name}" for index, class_name in enumerate(self.class_names))
                 target_text += f"\n\nClass\n{class_text}"
 
             self.target_info_label.setText(target_text)
@@ -485,7 +548,6 @@ class DataLabPage(QWidget):
     # 선택한 그래프에 필요한 Column UI를 표시
     def _update_graph_controls(self, _graph_type: str = ""):
         is_scatter = self.graph_type_combo.currentText() == "Scatter Plot"
-
         self.y_label.setVisible(is_scatter)
         self.y_column_combo.setVisible(is_scatter)
 
@@ -499,18 +561,14 @@ class DataLabPage(QWidget):
         if not x_column:
             return
 
-        # clear(): Figure에 그려진 기존 그래프를 제거
         self.figure.clear()
-
-        # add_subplot(): Figure 안에 실제 그래프를 그릴 Axes를 생성
         axes = self.figure.add_subplot(111)
+        axes.set_facecolor(COLOR_OFF_WHITE)
 
         graph_type = self.graph_type_combo.currentText()
 
         if graph_type == "Histogram":
-            # dropna(): 결측값을 제외한 데이터를 반환
-            # hist(): 데이터 값의 분포를 Histogram으로 표시
-            axes.hist(self.dataframe[x_column].dropna())
+            axes.hist(self.dataframe[x_column].dropna(), color=COLOR_SECONDARY)
             axes.set_xlabel(x_column)
             axes.set_ylabel("Frequency")
 
@@ -521,20 +579,31 @@ class DataLabPage(QWidget):
                 return
 
             plot_data = self.dataframe[[x_column, y_column]].dropna()
-
-            # scatter(): 두 변수의 관계를 점으로 표시
-            axes.scatter(plot_data[x_column], plot_data[y_column])
+            axes.scatter(plot_data[x_column], plot_data[y_column], color=COLOR_SECONDARY)
             axes.set_xlabel(x_column)
             axes.set_ylabel(y_column)
 
         elif graph_type == "Box Plot":
-            # boxplot(): 데이터의 분포와 중앙값 등을 Box 형태로 표시
-            axes.boxplot(self.dataframe[x_column].dropna())
+            axes.boxplot(
+                self.dataframe[x_column].dropna(),
+                boxprops={"color": COLOR_SECONDARY},
+                whiskerprops={"color": COLOR_SECONDARY},
+                capprops={"color": COLOR_SECONDARY},
+                medianprops={"color": COLOR_OFF_BLACK},
+                flierprops={"markeredgecolor": COLOR_SECONDARY},
+            )
             axes.set_ylabel(x_column)
 
-        axes.set_title(graph_type)
+        axes.set_title(graph_type, color=COLOR_OFF_BLACK)
+        axes.xaxis.label.set_color(COLOR_OFF_BLACK)
+        axes.yaxis.label.set_color(COLOR_OFF_BLACK)
+        axes.tick_params(colors=COLOR_OFF_BLACK)
 
-        # draw(): 변경된 Figure를 Canvas에 다시 표시
+        for spine in axes.spines.values():
+            spine.set_color(COLOR_PRIMARY)
+
+        # 그래프가 만들어진 뒤 Canvas를 표시
+        self.canvas.show()
         self.canvas.draw()
 
     # DataFrame 앞부분을 dtype과 함께 Table에 표시
@@ -542,10 +611,10 @@ class DataLabPage(QWidget):
         preview = self.dataframe.iloc[:PREVIEW_ROW_COUNT, :PREVIEW_COLUMN_COUNT]
 
         self.data_table.clear()
+        self.data_table.horizontalHeader().setVisible(True)
         self.data_table.setRowCount(len(preview))
         self.data_table.setColumnCount(len(preview.columns))
 
-        # 긴 Column 이름은 공백과 _를 기준으로 줄바꿈하고 마지막에 dtype을 표시
         headers = []
 
         for column in preview.columns:
@@ -556,16 +625,12 @@ class DataLabPage(QWidget):
 
         for row_index in range(len(preview)):
             for column_index in range(len(preview.columns)):
-                # iloc: Row와 Column의 위치 번호로 DataFrame 값을 가져오는 방법
                 value = preview.iloc[row_index, column_index]
-
-                # QTableWidgetItem: QTableWidget의 한 Cell에 들어가는 항목
                 item = QTableWidgetItem(str(value))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.data_table.setItem(row_index, column_index, item)
 
         total_columns = len(self.dataframe.columns)
-
         self.preview_note_label.setText(
             f"Preview: {len(preview)} Samples(Row) / {len(preview.columns)} of {total_columns} Columns"
         )
@@ -573,7 +638,6 @@ class DataLabPage(QWidget):
     # 선택한 머신러닝 개념의 설명과 Python Code를 표시
     def _show_concept(self, concept: str):
         self.selected_concept = concept
-
         description = CONCEPT_DESCRIPTIONS[concept]
         code = ""
 
@@ -584,10 +648,8 @@ class DataLabPage(QWidget):
 
         target = self._get_target_column()
         feature_columns = get_feature_columns(self.dataframe, target)
-
         x_column = self.x_column_combo.currentText()
         y_column = self.y_column_combo.currentText()
-
         feature_array = self.dataframe[feature_columns].to_numpy()
         target_array = self.dataframe[target].to_numpy() if target else None
 
@@ -616,9 +678,7 @@ class DataLabPage(QWidget):
                 unique_count = get_target_unique_count(self.dataframe, target)
 
                 if self.class_names and target == "target":
-                    class_text = "\n".join(
-                        f"{index} → {class_name}" for index, class_name in enumerate(self.class_names)
-                    )
+                    class_text = "\n".join(f"{index} → {class_name}" for index, class_name in enumerate(self.class_names))
                     description += f"\n\n현재 Class\n{class_text}"
 
                 elif unique_count <= 10:
@@ -638,11 +698,7 @@ class DataLabPage(QWidget):
                 code = "X = df.copy()\n# y 없음"
 
         elif concept == "Train / Test":
-            code = (
-                "X_train, X_test, y_train, y_test = train_test_split(X, y)"
-                if target
-                else "X_train, X_test = train_test_split(X)"
-            )
+            code = "X_train, X_test, y_train, y_test = train_test_split(X, y)" if target else "X_train, X_test = train_test_split(X)"
 
         elif concept == "fit()":
             code = "model.fit(X_train, y_train)" if target else "model.fit(X)"
@@ -656,13 +712,7 @@ class DataLabPage(QWidget):
 
         elif concept == "Scatter Plot":
             description += f"\n\n현재 선택\nX: {x_column}\nY: {y_column}"
-
-            code = (
-                "axes.scatter(\n"
-                f'    df["{x_column}"],\n'
-                f'    df["{y_column}"],\n'
-                ")"
-            )
+            code = f'axes.scatter(df["{x_column}"], df["{y_column}"])'
 
         elif concept == "Box Plot":
             description += f"\n\n현재 X Column\n{x_column}"
@@ -676,7 +726,6 @@ class DataLabPage(QWidget):
             elif feature_columns:
                 first_feature = feature_columns[0]
                 feature_1d = self.dataframe[first_feature].to_numpy()
-
                 description += f"\n\n현재 {first_feature} Array shape\n{feature_1d.shape}"
                 code = f'array_1d = df["{first_feature}"].to_numpy()'
 
@@ -694,10 +743,7 @@ class DataLabPage(QWidget):
 
         elif concept == "indexing":
             first_value = feature_array[0, 0]
-            description += (
-                "\n\n2D Array에서는 [Row, Column] 위치로 값을 선택한다.\n"
-                f"현재 X_array[0, 0] 값: {first_value}"
-            )
+            description += f"\n\n2D Array에서는 [Row, Column] 위치로 값을 선택한다.\n현재 X_array[0, 0] 값: {first_value}"
             code = "value = X_array[0, 0]"
 
         self.concept_description_label.setText(description)
@@ -705,7 +751,5 @@ class DataLabPage(QWidget):
 
     # Target 또는 그래프 Column 변경 시 현재 Concept Detail을 다시 표시
     def _update_concept_detail(self, _value: str = ""):
-        if not self.selected_concept:
-            return
-
-        self._show_concept(self.selected_concept)
+        if self.selected_concept:
+            self._show_concept(self.selected_concept)

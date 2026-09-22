@@ -1,262 +1,144 @@
 from PySide6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QPushButton,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
+    QButtonGroup, QFrame, QHBoxLayout, QLabel, QMainWindow, QPushButton,
+    QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from common.theme import (
-    GRID_PC_MAX_WIDTH,
-    SPACE_16,
-    SPACE_24,
-    SPACE_32,
-    WINDOW_HEIGHT,
+    GRID_PC_GUTTER, GRID_PC_MAX_WIDTH, GRID_PC_PADDING_X, GRID_PC_PADDING_Y,
+    SPACE_XS, SPACE_MD, WINDOW_HEIGHT,
 )
 from ui.pages.data_lab_page import DataLabPage
 from ui.pages.home_page import HomePage
 from ui.pages.placeholder_page import PlaceholderPage
 
 
-# QMainWindow: 프로그램의 최상위 Main Window를 만드는 클래스
 class MainWindow(QMainWindow):
+    # Main Window의 기본 UI와 Page를 구성
     def __init__(self):
         super().__init__()
 
+        self.setObjectName("mainWindow")
         self.setWindowTitle("Machine Learning Lab")
-
-        self.resize(
-            GRID_PC_MAX_WIDTH,
-            WINDOW_HEIGHT,
-        )
+        self.resize(GRID_PC_MAX_WIDTH, WINDOW_HEIGHT)
+        self.setMaximumWidth(GRID_PC_MAX_WIDTH)
 
         self.navigation_buttons = {}
 
         self._setup_ui()
+        self.switch_page("home")
 
-    # Main Window의 전체 UI를 구성
+    # Header, Navigation, Page 영역을 구성
     def _setup_ui(self):
         central_widget = QWidget()
-
+        central_widget.setObjectName("centralWidget")
         self.setCentralWidget(central_widget)
 
-        root_layout = QVBoxLayout(central_widget)
+        layout = QVBoxLayout(central_widget)
 
-        # setContentsMargins(): Layout 내부 콘텐츠와 바깥 경계 사이의 여백을 지정하는 메서드
-        root_layout.setContentsMargins(
-            SPACE_32,
-            SPACE_24,
-            SPACE_32,
-            SPACE_24,
+        # Noto Sans의 글자 위 여백을 보정해 화면상 Header 위 여백을 48px에 맞춤
+        layout.setContentsMargins(
+            GRID_PC_PADDING_X,
+            GRID_PC_PADDING_Y - SPACE_XS,
+            GRID_PC_PADDING_X,
+            GRID_PC_PADDING_Y,
         )
 
-        root_layout.setSpacing(SPACE_24)
+        # Header와 아래 Container 사이 간격 24px
+        layout.setSpacing(SPACE_MD)
 
         header_label = QLabel("Machine Learning Lab")
         header_label.setObjectName("headerLabel")
-
-        root_layout.addWidget(header_label)
+        layout.addWidget(header_label)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(SPACE_24)
+        content_layout.setSpacing(GRID_PC_GUTTER)
 
-        self.navigation_frame = self._create_navigation()
+        navigation_frame = self._create_navigation()
+        page_frame = self._create_pages()
 
-        # QFrame: Widget들을 하나의 영역으로 묶을 때 사용하는 Container Widget
-        self.page_frame = QFrame()
-        self.page_frame.setObjectName("pageFrame")
+        content_layout.addWidget(navigation_frame, 3)
+        content_layout.addWidget(page_frame, 9)
 
-        page_layout = QVBoxLayout(self.page_frame)
-
-        page_layout.setContentsMargins(
-            SPACE_16,
-            SPACE_16,
-            SPACE_16,
-            SPACE_16,
-        )
-
-        # QStackedWidget: 여러 Page를 담고 그중 하나만 화면에 표시하는 Widget
-        self.stack = QStackedWidget()
-
-        page_layout.addWidget(self.stack)
-
-        self._create_pages()
-
-        # 12 Column Grid 기준
-        # Navigation 3 / Page 9
-        content_layout.addWidget(
-            self.navigation_frame,
-            3,
-        )
-
-        content_layout.addWidget(
-            self.page_frame,
-            9,
-        )
-
-        root_layout.addLayout(content_layout)
-
-        self.switch_page("home")
+        layout.addLayout(content_layout, 1)
 
     # 왼쪽 Navigation 영역을 생성
     def _create_navigation(self) -> QFrame:
-        frame = QFrame()
-        frame.setObjectName("navigationFrame")
+        navigation_frame = QFrame()
+        navigation_frame.setObjectName("navigationFrame")
 
-        layout = QVBoxLayout(frame)
+        layout = QVBoxLayout(navigation_frame)
+        layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
+        layout.setSpacing(0)
 
-        layout.setContentsMargins(
-            SPACE_16,
-            SPACE_16,
-            SPACE_16,
-            SPACE_16,
-        )
+        # QButtonGroup: 여러 Button 중 하나만 선택된 상태로 유지하는 그룹
+        self.navigation_group = QButtonGroup(self)
+        self.navigation_group.setExclusive(True)
 
         navigation_items = [
             ("home", "Home"),
             ("data", "Data Lab        (데이터 탐색)"),
-            ("preprocessing", "Preprocessing   (데이터 전처리)"),
-            ("regression", "Regression      (회귀)"),
-            ("classification", "Classification  (분류)"),
+            ("preprocessing", "Preprocessing  (데이터 전처리)"),
+            ("regression", "Regression        (회귀)"),
+            ("classification", "Classification    (분류)"),
             ("evaluation", "Evaluation      (모델 평가)"),
             ("selection", "Model Selection  (모델 선택)"),
-            ("unsupervised", "Unsupervised    (비지도 학습)"),
-            ("final", "Final Experiment (종합 실습)"),
+            ("unsupervised", "Unsupervised   (비지도 학습)"),
+            ("final", "Final Experiment  (종합 실습)"),
         ]
 
         for page_name, text in navigation_items:
             button = QPushButton(text)
-
             button.setObjectName("navigationButton")
-
-            # setCheckable(): QPushButton이 선택됨/선택 해제됨 상태를 가질 수 있게 만드는 메서드
             button.setCheckable(True)
+            button.clicked.connect(lambda checked=False, name=page_name: self.switch_page(name))
 
-            button.clicked.connect(
-                lambda checked=False, name=page_name:
-                self.switch_page(name)
-            )
-
+            self.navigation_group.addButton(button)
             self.navigation_buttons[page_name] = button
-
             layout.addWidget(button)
 
         layout.addStretch()
+        return navigation_frame
 
-        return frame
+    # 오른쪽 Page 영역과 각 Stage Page를 생성
+    def _create_pages(self) -> QFrame:
+        page_frame = QFrame()
+        page_frame.setObjectName("pageFrame")
 
-    # 사용할 Page들을 생성하고 QStackedWidget에 등록
-    def _create_pages(self):
-        self.pages = {}
+        layout = QVBoxLayout(page_frame)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        home_page = HomePage()
+        self.page_stack = QStackedWidget()
+        self.page_stack.setObjectName("pageStack")
 
-        home_page.data_source_selected.connect(
-            self._handle_data_source_selected
-        )
-
+        self.home_page = HomePage()
         self.data_lab_page = DataLabPage()
 
-        self._add_page(
-            "home",
-            home_page,
-        )
+        self.pages = {
+            "home": self.home_page,
+            "data": self.data_lab_page,
+            "preprocessing": PlaceholderPage("Preprocessing"),
+            "regression": PlaceholderPage("Regression"),
+            "classification": PlaceholderPage("Classification"),
+            "evaluation": PlaceholderPage("Evaluation"),
+            "selection": PlaceholderPage("Model Selection"),
+            "unsupervised": PlaceholderPage("Unsupervised"),
+            "final": PlaceholderPage("Final Experiment"),
+        }
 
-        self._add_page(
-            "data",
-            self.data_lab_page,
-        )
+        for page in self.pages.values():
+            self.page_stack.addWidget(page)
 
-        self._add_page(
-            "preprocessing",
-            PlaceholderPage(
-                "Preprocessing",
-                "데이터 전처리",
-            ),
-        )
+        self.home_page.data_source_selected.connect(self._handle_data_source_selected)
+        layout.addWidget(self.page_stack)
 
-        self._add_page(
-            "regression",
-            PlaceholderPage(
-                "Regression",
-                "회귀",
-            ),
-        )
+        return page_frame
 
-        self._add_page(
-            "classification",
-            PlaceholderPage(
-                "Classification",
-                "분류",
-            ),
-        )
+    # 선택한 Navigation Page로 전환
+    def switch_page(self, page_name: str):
+        self.page_stack.setCurrentWidget(self.pages[page_name])
+        self.navigation_buttons[page_name].setChecked(True)
 
-        self._add_page(
-            "evaluation",
-            PlaceholderPage(
-                "Evaluation",
-                "모델 평가",
-            ),
-        )
-
-        self._add_page(
-            "selection",
-            PlaceholderPage(
-                "Model Selection",
-                "모델 선택",
-            ),
-        )
-
-        self._add_page(
-            "unsupervised",
-            PlaceholderPage(
-                "Unsupervised",
-                "비지도 학습",
-            ),
-        )
-
-        self._add_page(
-            "final",
-            PlaceholderPage(
-                "Final Experiment",
-                "종합 실습",
-            ),
-        )
-
-    # Page를 이름과 함께 저장하고 QStackedWidget에 추가
-    def _add_page(
-        self,
-        name: str,
-        page: QWidget,
-    ):
-        self.pages[name] = page
-        self.stack.addWidget(page)
-
-    # 선택한 Page를 화면에 표시
-    def switch_page(
-        self,
-        page_name: str,
-    ):
-        page = self.pages[page_name]
-
-        # setCurrentWidget(): QStackedWidget에서 현재 표시할 Page를 변경
-        self.stack.setCurrentWidget(page)
-
-        for name, button in self.navigation_buttons.items():
-            button.setChecked(
-                name == page_name
-            )
-
-    # 선택한 Dataset Source를 Data Lab에 전달하고 해당 Page로 이동
-    def _handle_data_source_selected(
-        self,
-        source: str,
-    ):
-        self.data_lab_page.set_data_source(
-            source
-        )
-
+    # Home에서 선택한 Dataset Source를 Data Lab으로 전달
+    def _handle_data_source_selected(self, source: str):
+        self.data_lab_page.set_data_source(source)
         self.switch_page("data")
