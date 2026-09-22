@@ -1,0 +1,13 @@
+runner_id,weekly_distance,avg_pace,training_days,experience_level,recovery_score,injury_risk
+1,10,7.2,2,Beginner,82,0
+2,14,6.9,3,Beginner,78,0
+3,18,6.6,3,Beginner,74,0
+4,22,6.3,4,Intermediate,70,0
+5,28,6.0,4,Intermediate,65,0
+6,35,5.8,5,Intermediate,58,1
+7,42,5.5,6,Advanced,52,1
+8,48,5.3,6,Advanced,48,1
+9,16,6.8,3,Beginner,,0
+10,30,5.9,5,,61,1
+11,38,5.6,5,Advanced,55,1
+12,20,6.4,4,Intermediate,72,0

@@ -1,0 +1,13 @@
+customer_id,age,income,visits,member_type,purchased
+1,22,2800,1,Basic,0
+2,25,3100,2,Basic,0
+3,28,3400,3,Silver,0
+4,31,3800,4,Silver,1
+5,34,4200,5,Silver,1
+6,37,4700,5,Gold,1
+7,40,5100,6,Gold,1
+8,43,5500,7,Gold,1
+9,27,3200,2,Basic,0
+10,30,3600,3,Silver,0
+11,35,4500,5,Gold,1
+12,39,4900,6,Gold,1

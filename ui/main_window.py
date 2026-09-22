@@ -14,9 +14,12 @@ from common.theme import (
     SPACE_16,
     SPACE_24,
     SPACE_32,
+    WINDOW_HEIGHT,
 )
+from ui.pages.data_lab_page import DataLabPage
 from ui.pages.home_page import HomePage
 from ui.pages.placeholder_page import PlaceholderPage
+
 
 # QMainWindow: 프로그램의 최상위 Main Window를 만드는 클래스
 class MainWindow(QMainWindow):
@@ -27,13 +30,14 @@ class MainWindow(QMainWindow):
 
         self.resize(
             GRID_PC_MAX_WIDTH,
-            760,
+            WINDOW_HEIGHT,
         )
 
         self.navigation_buttons = {}
 
         self._setup_ui()
 
+    # Main Window의 전체 UI를 구성
     def _setup_ui(self):
         central_widget = QWidget()
 
@@ -49,24 +53,19 @@ class MainWindow(QMainWindow):
             SPACE_24,
         )
 
-        # setSpacing(): Layout 안에서 서로 인접한 Widget 사이의 간격을 지정하는 메서드
         root_layout.setSpacing(SPACE_24)
 
-        # Header
         header_label = QLabel("Machine Learning Lab")
-        # setObjectName(): Widget에 이름을 지정해 QSS에서 특정 Widget만 선택할 수 있게 하는 메서드
         header_label.setObjectName("headerLabel")
 
         root_layout.addWidget(header_label)
 
-        # Main Content
         content_layout = QHBoxLayout()
-
         content_layout.setSpacing(SPACE_24)
 
         self.navigation_frame = self._create_navigation()
 
-        # QFrame: Container Widget
+        # QFrame: Widget들을 하나의 영역으로 묶을 때 사용하는 Container Widget
         self.page_frame = QFrame()
         self.page_frame.setObjectName("pageFrame")
 
@@ -79,7 +78,7 @@ class MainWindow(QMainWindow):
             SPACE_16,
         )
 
-        # QStackedWidget: 여러 Page를 담아두고 그중 하나의 Page만 화면에 표시하는 Widget
+        # QStackedWidget: 여러 Page를 담고 그중 하나만 화면에 표시하는 Widget
         self.stack = QStackedWidget()
 
         page_layout.addWidget(self.stack)
@@ -102,6 +101,7 @@ class MainWindow(QMainWindow):
 
         self.switch_page("home")
 
+    # 왼쪽 Navigation 영역을 생성
     def _create_navigation(self) -> QFrame:
         frame = QFrame()
         frame.setObjectName("navigationFrame")
@@ -127,19 +127,16 @@ class MainWindow(QMainWindow):
             ("final", "Final Experiment (종합 실습)"),
         ]
 
-        # QPushButton: 클릭할 수 있는 Button Widget
         for page_name, text in navigation_items:
             button = QPushButton(text)
-        
+
             button.setObjectName("navigationButton")
+
             # setCheckable(): QPushButton이 선택됨/선택 해제됨 상태를 가질 수 있게 만드는 메서드
             button.setCheckable(True)
 
-            # clicked: QPushButton이 기본 제공하는 Signal
-            # connect(): Signal과 실행할 Slot을 연결하는 메서드
             button.clicked.connect(
                 lambda checked=False, name=page_name:
-                # Signal을 받았을 때 실행하는 함수
                 self.switch_page(name)
             )
 
@@ -147,20 +144,21 @@ class MainWindow(QMainWindow):
 
             layout.addWidget(button)
 
-        # addStretch(): Layout에서 남는 공간을 빈 여백으로 채워 Widget 위치를 조정하는 메서드
         layout.addStretch()
 
         return frame
 
+    # 사용할 Page들을 생성하고 QStackedWidget에 등록
     def _create_pages(self):
         self.pages = {}
 
         home_page = HomePage()
 
-        # home_page의 data_source_selected = Signal(str)를 받는 Slot
         home_page.data_source_selected.connect(
             self._handle_data_source_selected
         )
+
+        self.data_lab_page = DataLabPage()
 
         self._add_page(
             "home",
@@ -169,10 +167,7 @@ class MainWindow(QMainWindow):
 
         self._add_page(
             "data",
-            PlaceholderPage(
-                "Data Lab",
-                "데이터 탐색",
-            ),
+            self.data_lab_page,
         )
 
         self._add_page(
@@ -231,6 +226,7 @@ class MainWindow(QMainWindow):
             ),
         )
 
+    # Page를 이름과 함께 저장하고 QStackedWidget에 추가
     def _add_page(
         self,
         name: str,
@@ -239,18 +235,28 @@ class MainWindow(QMainWindow):
         self.pages[name] = page
         self.stack.addWidget(page)
 
-    def switch_page(self, page_name: str):
+    # 선택한 Page를 화면에 표시
+    def switch_page(
+        self,
+        page_name: str,
+    ):
         page = self.pages[page_name]
 
-        self.stack.setCurrentWidget(page) # Page를 바꾼다.
+        # setCurrentWidget(): QStackedWidget에서 현재 표시할 Page를 변경
+        self.stack.setCurrentWidget(page)
 
         for name, button in self.navigation_buttons.items():
-            button.setChecked(name == page_name)
+            button.setChecked(
+                name == page_name
+            )
 
+    # 선택한 Dataset Source를 Data Lab에 전달하고 해당 Page로 이동
     def _handle_data_source_selected(
         self,
         source: str,
     ):
-        self.selected_data_source = source
+        self.data_lab_page.set_data_source(
+            source
+        )
 
         self.switch_page("data")

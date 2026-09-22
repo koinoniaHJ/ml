@@ -1,2 +1,6 @@
 PySide6
 pytest
+numpy
+pandas
+matplotlib
+scikit-learn
