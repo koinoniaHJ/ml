@@ -7,7 +7,8 @@ from common.paths import FONT_PATH
 from common.styles import APP_STYLE
 from ui.main_window import MainWindow
 
-
+# QApplication: PySide6 프로그램을 실행하는 객체
+# QFontDatabase: 외부 Font 파일을 등록할 때 사용하는 클래스
 def load_font(app: QApplication):
     font_id = QFontDatabase.addApplicationFont(
         str(FONT_PATH)
@@ -20,6 +21,7 @@ def load_font(app: QApplication):
         font_id
     )
 
+    # QFont: 적용할 Font를 표현하는 클래스
     if font_families:
         app.setFont(
             QFont(font_families[0])

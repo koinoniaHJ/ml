@@ -18,7 +18,7 @@ from common.theme import (
 from ui.pages.home_page import HomePage
 from ui.pages.placeholder_page import PlaceholderPage
 
-
+# QMainWindow: 프로그램의 최상위 Main Window를 만드는 클래스
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
 
         root_layout = QVBoxLayout(central_widget)
 
+        # setContentsMargins(): Layout 내부 콘텐츠와 바깥 경계 사이의 여백을 지정하는 메서드
         root_layout.setContentsMargins(
             SPACE_32,
             SPACE_24,
@@ -48,10 +49,12 @@ class MainWindow(QMainWindow):
             SPACE_24,
         )
 
+        # setSpacing(): Layout 안에서 서로 인접한 Widget 사이의 간격을 지정하는 메서드
         root_layout.setSpacing(SPACE_24)
 
         # Header
         header_label = QLabel("Machine Learning Lab")
+        # setObjectName(): Widget에 이름을 지정해 QSS에서 특정 Widget만 선택할 수 있게 하는 메서드
         header_label.setObjectName("headerLabel")
 
         root_layout.addWidget(header_label)
@@ -63,6 +66,7 @@ class MainWindow(QMainWindow):
 
         self.navigation_frame = self._create_navigation()
 
+        # QFrame: Container Widget
         self.page_frame = QFrame()
         self.page_frame.setObjectName("pageFrame")
 
@@ -75,6 +79,7 @@ class MainWindow(QMainWindow):
             SPACE_16,
         )
 
+        # QStackedWidget: 여러 Page를 담아두고 그중 하나의 Page만 화면에 표시하는 Widget
         self.stack = QStackedWidget()
 
         page_layout.addWidget(self.stack)
@@ -122,13 +127,16 @@ class MainWindow(QMainWindow):
             ("final", "Final Experiment (종합 실습)"),
         ]
 
+        # QPushButton: 클릭할 수 있는 Button Widget
         for page_name, text in navigation_items:
             button = QPushButton(text)
-
+        
             button.setObjectName("navigationButton")
+            # setCheckable(): QPushButton이 선택됨/선택 해제됨 상태를 가질 수 있게 만드는 메서드
             button.setCheckable(True)
 
-            # clicked: Signal
+            # clicked: QPushButton이 기본 제공하는 Signal
+            # connect(): Signal과 실행할 Slot을 연결하는 메서드
             button.clicked.connect(
                 lambda checked=False, name=page_name:
                 # Signal을 받았을 때 실행하는 함수
@@ -139,6 +147,7 @@ class MainWindow(QMainWindow):
 
             layout.addWidget(button)
 
+        # addStretch(): Layout에서 남는 공간을 빈 여백으로 채워 Widget 위치를 조정하는 메서드
         layout.addStretch()
 
         return frame
