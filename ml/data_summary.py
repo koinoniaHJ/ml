@@ -1,3 +1,4 @@
+# 데이터의 기본 통계와 Target,Feature, Column 정보를 계산
 import pandas as pd
 
 
@@ -22,20 +23,31 @@ def get_data_summary(dataframe: pd.DataFrame) -> dict:
 
 # Column 이름을 기준으로 식별자 Column인지 확인
 def is_identifier_column(column: str) -> bool:
-    column = column.lower()
+    column = str(column).lower()
 
     # endswith(): 문자열이 지정한 문자로 끝나는지 확인
     return column == "id" or column.endswith("_id")
 
 
+# 식별자 Column을 반환
+def get_identifier_columns(dataframe: pd.DataFrame) -> list[str]:
+    return [column for column in dataframe.columns if is_identifier_column(column)]
+
+
 # 식별자 Column을 제외한 Target 후보를 반환
 def get_target_columns(dataframe: pd.DataFrame) -> list[str]:
-    return [column for column in dataframe.columns if not is_identifier_column(column)]
+    identifier_columns = get_identifier_columns(dataframe)
+    return [column for column in dataframe.columns if column not in identifier_columns]
 
 
 # 선택한 Target을 제외한 Column을 Feature 후보로 반환
 def get_feature_columns(dataframe: pd.DataFrame, target_column: str | None) -> list[str]:
-    return [column for column in dataframe.columns if column != target_column]
+    identifier_columns = get_identifier_columns(dataframe)
+    return [
+        column
+        for column in dataframe.columns
+        if column != target_column and column not in identifier_columns
+    ]
 
 
 # 선택한 Target에 서로 다른 값이 몇 개인지 계산

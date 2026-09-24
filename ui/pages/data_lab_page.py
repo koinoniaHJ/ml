@@ -1,5 +1,7 @@
+# 데이터를 불러와 탐색하고 시각화하는 Data Lab 화면을 구성
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -16,10 +18,14 @@ from common.theme import (
     PREVIEW_COLUMN_COUNT, PREVIEW_ROW_COUNT, SPACE_SM, SPACE_MD, TABLE_HEADER_HEIGHT,
 )
 from ml.data_loader import (
-    get_builtin_target, get_sklearn_target, get_sklearn_target_names,
+    get_builtin_class_names, get_builtin_target, get_builtin_task_type,
+    get_sklearn_target, get_sklearn_target_names, get_sklearn_task_type,
     load_builtin_dataset, load_local_csv, load_sklearn_dataset,
 )
-from ml.data_summary import get_data_summary, get_feature_columns, get_numeric_columns, get_target_columns, get_target_unique_count
+from ml.data_summary import (
+    get_data_summary, get_feature_columns, get_identifier_columns, get_numeric_columns,
+    get_target_columns, get_target_unique_count,
+)
 
 
 CONCEPT_DESCRIPTIONS = {
@@ -30,7 +36,7 @@ CONCEPT_DESCRIPTIONS = {
     "X / y": "X는 Model에 입력하는 Feature 데이터이고, y는 지도 학습에서 사용하는 Target 데이터다.",
     "Train / Test": "Train은 Model 학습에 사용하고 Test는 학습된 Model의 성능 확인에 사용한다.",
     "fit()": "Train 데이터를 이용해 Model을 학습시키는 메서드다.",
-    "predict()": "학습된 Model을 이용해 새로운 값을 예측하는 메서드다.",
+    "predict()": "학습된 Model을 이용해 결과를 생성하는 메서드로, 지원 여부와 결과의 의미는 Model에 따라 다르다.",
     "Histogram": "하나의 숫자형 Column 값이 어떤 범위에 얼마나 분포하는지 확인하는 그래프다.",
     "Scatter Plot": "두 숫자형 Column 사이의 관계를 점으로 확인하는 그래프다.",
     "Box Plot": "숫자형 Column의 중앙값, 분포, 이상치 등을 Box 형태로 확인하는 그래프다.",
@@ -38,6 +44,13 @@ CONCEPT_DESCRIPTIONS = {
     "2D Array": "행과 열로 구성된 NumPy 배열이다.",
     "shape": "NumPy Array의 각 차원 크기를 튜플로 나타내는 속성이다.",
     "indexing": "위치 번호를 이용해 NumPy Array의 특정 값을 선택하는 방법이다.",
+}
+
+TASK_TYPE_LABELS = {
+    "classification": "Classification (분류)",
+    "regression": "Regression (회귀)",
+    "clustering": "Clustering (군집화)",
+    "unknown": "미정",
 }
 
 
@@ -94,6 +107,7 @@ class DataLabPage(QWidget):
         self.dataset_name = ""
         self.selected_concept = ""
         self.class_names = None
+        self.task_type = None
 
         self._setup_ui()
 
@@ -114,7 +128,7 @@ class DataLabPage(QWidget):
         self.scroll_area.setWidget(content)
 
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(SPACE_SM, SPACE_SM, SPACE_SM, SPACE_SM)
+        layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
         layout.setSpacing(SPACE_MD)
 
         page_title = QLabel("Data Lab - 데이터 탐색")
@@ -349,7 +363,7 @@ class DataLabPage(QWidget):
 
         self.concept_description_label = QLabel("확인할 개념을 선택하세요.")
         self.concept_description_label.setWordWrap(True)
-        self.concept_description_label.setObjectName("smallText")
+        self.concept_description_label.setObjectName("bodyText")
         self.concept_description_label.setMinimumHeight(150)
         detail_layout.addWidget(self.concept_description_label, 1, 0)
 
@@ -421,16 +435,17 @@ class DataLabPage(QWidget):
 
     # 현재 선택된 Dataset을 불러와 DataFrame으로 저장
     def _load_selected_dataset(self):
-        self.class_names = None
-
         if self.data_source == "builtin":
             self.dataset_name = self.dataset_combo.currentData()
             self.dataframe = load_builtin_dataset(self.dataset_name)
+            self.class_names = get_builtin_class_names(self.dataset_name)
+            self.task_type = get_builtin_task_type(self.dataset_name)
 
         elif self.data_source == "sklearn":
             self.dataset_name = self.dataset_combo.currentData()
             self.dataframe = load_sklearn_dataset(self.dataset_name)
             self.class_names = get_sklearn_target_names(self.dataset_name)
+            self.task_type = get_sklearn_task_type(self.dataset_name)
 
         else:
             self._select_csv()
@@ -445,9 +460,22 @@ class DataLabPage(QWidget):
         if not file_path:
             return
 
+        try:
+            dataframe = load_local_csv(Path(file_path))
+        except pd.errors.EmptyDataError:
+            self.status_label.setText("불러오기 실패: CSV 파일에 데이터가 없습니다.")
+            return
+        except (pd.errors.ParserError, UnicodeDecodeError):
+            self.status_label.setText("불러오기 실패: CSV 파일 형식을 확인하세요.")
+            return
+        except OSError:
+            self.status_label.setText("불러오기 실패: CSV 파일을 읽을 수 없습니다.")
+            return
+
         self.dataset_name = Path(file_path).name
         self.class_names = None
-        self.dataframe = load_local_csv(Path(file_path))
+        self.task_type = "unknown"
+        self.dataframe = dataframe
         self._show_load_result()
 
     # 불러온 Dataset의 기본 정보와 관련 UI를 갱신
@@ -512,25 +540,54 @@ class DataLabPage(QWidget):
     def _get_target_column(self) -> str | None:
         return self.target_combo.currentData()
 
+    # 분류 Target의 Class 값을 화면에 표시할 문자열로 변환
+    def _get_class_text(self, target: str) -> str:
+        if self.class_names:
+            return "\n".join(f"{index} → {name}" for index, name in enumerate(self.class_names))
+
+        class_values = self.dataframe[target].dropna().unique().tolist()
+        return "\n".join(map(str, class_values))
+
     # 선택한 Target을 기준으로 Feature 후보와 Target 정보를 표시
     def _update_target_info(self, _index: int = -1):
-        if self.dataframe.empty:
-            return
-
         target = self._get_target_column()
         feature_columns = get_feature_columns(self.dataframe, target)
-        self.feature_label.setText(", ".join(feature_columns))
+        identifier_columns = get_identifier_columns(self.dataframe)
+        feature_text = ", ".join(map(str, feature_columns)) or "-"
+
+        if identifier_columns:
+            identifiers = ", ".join(map(str, identifier_columns))
+            feature_text += f"\n\n식별자 Column 제외\n{identifiers}"
+
+        self.feature_label.setText(feature_text)
+
+        if self.dataframe.empty:
+            self.target_info_label.setText("표시할 데이터가 없습니다.")
+            self._update_concept_detail()
+            return
 
         if target is None:
-            self.target_info_label.setText("Target 없음 · 비지도 학습")
+            task_type = "Clustering (군집화)" if self.task_type == "clustering" else "Unsupervised (비지도 학습)"
+            self.target_info_label.setText(f"문제 유형    {task_type}\nTarget    없음")
 
         else:
             unique_count = get_target_unique_count(self.dataframe, target)
-            target_text = f"Target 고유값 수    {unique_count}"
 
-            if self.class_names and target == "target":
-                class_text = "\n".join(f"{index} → {class_name}" for index, class_name in enumerate(self.class_names))
-                target_text += f"\n\nClass\n{class_text}"
+            if self.task_type == "classification":
+                class_text = self._get_class_text(target)
+                target_text = (
+                    f"문제 유형    {TASK_TYPE_LABELS[self.task_type]}\n"
+                    f"Target    {target}\n"
+                    f"Class 수    {unique_count}\n\n"
+                    f"Class\n{class_text}"
+                )
+            else:
+                task_type = TASK_TYPE_LABELS.get(self.task_type, TASK_TYPE_LABELS["unknown"])
+                target_text = (
+                    f"문제 유형    {task_type}\n"
+                    f"Target    {target}\n"
+                    f"Target 고유값 수    {unique_count}"
+                )
 
             self.target_info_label.setText(target_text)
 
@@ -561,31 +618,43 @@ class DataLabPage(QWidget):
         if not x_column:
             return
 
-        self.figure.clear()
-        axes = self.figure.add_subplot(111)
-        axes.set_facecolor(COLOR_OFF_WHITE)
-
         graph_type = self.graph_type_combo.currentText()
 
-        if graph_type == "Histogram":
-            axes.hist(self.dataframe[x_column].dropna(), color=COLOR_SECONDARY)
-            axes.set_xlabel(x_column)
-            axes.set_ylabel("Frequency")
-
-        elif graph_type == "Scatter Plot":
+        if graph_type == "Scatter Plot":
             y_column = self.y_column_combo.currentText()
 
             if not y_column:
                 return
 
             plot_data = self.dataframe[[x_column, y_column]].dropna()
+            plot_data = plot_data[np.isfinite(plot_data).all(axis=1)]
+        else:
+            plot_data = self.dataframe[x_column].dropna()
+            plot_data = plot_data[np.isfinite(plot_data)]
+
+        if plot_data.empty:
+            self.figure.clear()
+            self.canvas.hide()
+            self.status_label.setText("그래프 생성 실패: 유효한 숫자 데이터가 없습니다.")
+            return
+
+        self.figure.clear()
+        axes = self.figure.add_subplot(111)
+        axes.set_facecolor(COLOR_OFF_WHITE)
+
+        if graph_type == "Histogram":
+            axes.hist(plot_data, color=COLOR_SECONDARY)
+            axes.set_xlabel(x_column)
+            axes.set_ylabel("Frequency")
+
+        elif graph_type == "Scatter Plot":
             axes.scatter(plot_data[x_column], plot_data[y_column], color=COLOR_SECONDARY)
             axes.set_xlabel(x_column)
             axes.set_ylabel(y_column)
 
         elif graph_type == "Box Plot":
             axes.boxplot(
-                self.dataframe[x_column].dropna(),
+                plot_data,
                 boxprops={"color": COLOR_SECONDARY},
                 whiskerprops={"color": COLOR_SECONDARY},
                 capprops={"color": COLOR_SECONDARY},
@@ -605,6 +674,7 @@ class DataLabPage(QWidget):
         # 그래프가 만들어진 뒤 Canvas를 표시
         self.canvas.show()
         self.canvas.draw()
+        self.status_label.setText("그래프 생성 완료")
 
     # DataFrame 앞부분을 dtype과 함께 Table에 표시
     def _show_dataframe(self):
@@ -659,12 +729,21 @@ class DataLabPage(QWidget):
 
         elif concept == "Feature":
             description += "\n\n현재 Feature 후보\n" + "\n".join(feature_columns)
-            code = f'X = df.drop(columns=["{target}"])' if target else "X = df.copy()"
+            identifier_columns = get_identifier_columns(self.dataframe)
+
+            if identifier_columns:
+                description += (
+                    "\n\n식별자 Column 제외\n"
+                    + "\n".join(identifier_columns)
+                    + "\n\n식별자는 대상을 구분하기 위한 값이므로 이 Lab의 기본 Feature 후보에서 제외한다."
+                )
+
+            code = f"X = df[{feature_columns!r}]"
 
         elif concept == "Target":
             if target:
                 description += f"\n\n현재 Target\n{target}"
-                code = f'y = df["{target}"]'
+                code = f"y = df[{target!r}]"
             else:
                 description += "\n\n현재 Dataset은 비지도 학습이므로 Target을 사용하지 않는다."
                 code = "# 비지도 학습에서는 Target y를 사용하지 않습니다."
@@ -674,64 +753,76 @@ class DataLabPage(QWidget):
                 description += "\n\nTarget이 없는 비지도 학습에서는 미리 정해진 Class도 없다."
                 code = "# Model이 데이터의 패턴이나 Cluster를 스스로 찾습니다."
 
+            elif self.task_type == "classification":
+                description += f"\n\n현재 Class\n{self._get_class_text(target)}"
+                code = f"df[{target!r}].value_counts()"
+
+            elif self.task_type == "regression":
+                description += "\n\n현재 Dataset은 연속값을 예측하는 회귀 문제이므로 Class를 사용하지 않는다."
+                code = f"df[{target!r}].describe()"
+
             else:
                 unique_count = get_target_unique_count(self.dataframe, target)
-
-                if self.class_names and target == "target":
-                    class_text = "\n".join(f"{index} → {class_name}" for index, class_name in enumerate(self.class_names))
-                    description += f"\n\n현재 Class\n{class_text}"
-
-                elif unique_count <= 10:
-                    class_values = self.dataframe[target].dropna().unique().tolist()
-                    description += f"\n\n현재 Class 값\n{', '.join(map(str, class_values))}"
-
-                else:
-                    description += "\n\n현재 Target은 고유값이 많아 연속형 Target으로 볼 수 있다."
-
-                code = f'df["{target}"].value_counts()'
+                description += (
+                    f"\n\n현재 Target 고유값 수: {unique_count}"
+                    "\n고유값 개수만으로 분류와 회귀를 결정할 수 없다. 학습 목적에 따라 문제 유형을 결정한다."
+                )
+                code = f"df[{target!r}].nunique()"
 
         elif concept == "X / y":
             if target:
-                code = f'X = df.drop(columns=["{target}"])\ny = df["{target}"]'
+                code = f"X = df[{feature_columns!r}]\ny = df[{target!r}]"
             else:
                 description += "\n\n비지도 학습에서는 X만 사용하고 정답 y는 사용하지 않는다."
-                code = "X = df.copy()\n# y 없음"
+                code = f"X = df[{feature_columns!r}]\n# y 없음"
 
         elif concept == "Train / Test":
-            code = "X_train, X_test, y_train, y_test = train_test_split(X, y)" if target else "X_train, X_test = train_test_split(X)"
+            if target:
+                code = "X_train, X_test, y_train, y_test = train_test_split(X, y)"
+            else:
+                description += "\n\n비지도 학습은 목적과 평가 방법에 따라 데이터 분할 여부가 달라진다."
+                code = "# 비지도 학습에서는 평가 방법을 먼저 정한 뒤 데이터 분할 여부를 결정합니다."
 
         elif concept == "fit()":
             code = "model.fit(X_train, y_train)" if target else "model.fit(X)"
 
         elif concept == "predict()":
-            code = "prediction = model.predict(X_test)" if target else "cluster = model.fit_predict(X)"
+            if target:
+                description += "\n\n지도 학습에서는 새로운 Feature에 대한 Target을 예측한다."
+                code = "prediction = model.predict(X_test)"
+            elif self.task_type == "clustering":
+                description += "\n\n군집화에서는 fit_predict()을 지원하는 Model로 학습과 Cluster 할당을 함께 수행할 수 있다."
+                code = "labels = model.fit_predict(X)"
+            else:
+                description += "\n\n비지도 학습에서 사용할 수 있는 예측 메서드는 Model마다 다르다."
+                code = "# 선택한 Model이 지원하는 메서드를 확인합니다."
 
         elif concept == "Histogram":
             description += f"\n\n현재 X Column\n{x_column}"
-            code = f'axes.hist(df["{x_column}"].dropna())'
+            code = f"axes.hist(df[{x_column!r}].dropna())"
 
         elif concept == "Scatter Plot":
             description += f"\n\n현재 선택\nX: {x_column}\nY: {y_column}"
-            code = f'axes.scatter(df["{x_column}"], df["{y_column}"])'
+            code = f"axes.scatter(df[{x_column!r}], df[{y_column!r}])"
 
         elif concept == "Box Plot":
             description += f"\n\n현재 X Column\n{x_column}"
-            code = f'axes.boxplot(df["{x_column}"].dropna())'
+            code = f"axes.boxplot(df[{x_column!r}].dropna())"
 
         elif concept == "1D Array":
             if target_array is not None:
                 description += f"\n\n현재 y Array shape\n{target_array.shape}"
-                code = f'y_array = df["{target}"].to_numpy()'
+                code = f"y_array = df[{target!r}].to_numpy()"
 
             elif feature_columns:
                 first_feature = feature_columns[0]
                 feature_1d = self.dataframe[first_feature].to_numpy()
                 description += f"\n\n현재 {first_feature} Array shape\n{feature_1d.shape}"
-                code = f'array_1d = df["{first_feature}"].to_numpy()'
+                code = f"array_1d = df[{first_feature!r}].to_numpy()"
 
         elif concept == "2D Array":
             description += f"\n\n현재 X Array shape\n{feature_array.shape}"
-            code = f'X_array = df.drop(columns=["{target}"]).to_numpy()' if target else "X_array = df.to_numpy()"
+            code = f"X_array = df[{feature_columns!r}].to_numpy()"
 
         elif concept == "shape":
             if target_array is not None:
@@ -742,9 +833,13 @@ class DataLabPage(QWidget):
                 code = "X_array.shape"
 
         elif concept == "indexing":
-            first_value = feature_array[0, 0]
-            description += f"\n\n2D Array에서는 [Row, Column] 위치로 값을 선택한다.\n현재 X_array[0, 0] 값: {first_value}"
-            code = "value = X_array[0, 0]"
+            if feature_columns:
+                first_value = feature_array[0, 0]
+                description += f"\n\n2D Array에서는 [Row, Column] 위치로 값을 선택한다.\n현재 X_array[0, 0] 값: {first_value}"
+                code = "value = X_array[0, 0]"
+            else:
+                description += "\n\n현재 Dataset에는 indexing할 Feature가 없다."
+                code = "# 먼저 Feature Column이 필요합니다."
 
         self.concept_description_label.setText(description)
         self.code_view.setPlainText(code)

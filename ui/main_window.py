@@ -1,10 +1,12 @@
+# 애플리케이션의 메인 창과 페이지 전환 구조를 구성
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QHBoxLayout, QLabel, QMainWindow, QPushButton,
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from common.theme import (
-    GRID_PC_GUTTER, GRID_PC_MAX_WIDTH, GRID_PC_PADDING_X, GRID_PC_PADDING_Y,
+    LAYOUT_MAX_WIDTH, PAGE_PADDING_X, PAGE_PADDING_Y, SIDEBAR_WIDTH,
     SPACE_XS, SPACE_MD, WINDOW_HEIGHT,
 )
 from ui.pages.data_lab_page import DataLabPage
@@ -19,8 +21,8 @@ class MainWindow(QMainWindow):
 
         self.setObjectName("mainWindow")
         self.setWindowTitle("Machine Learning Lab")
-        self.resize(GRID_PC_MAX_WIDTH, WINDOW_HEIGHT)
-        self.setMaximumWidth(GRID_PC_MAX_WIDTH)
+        self.resize(LAYOUT_MAX_WIDTH, WINDOW_HEIGHT)
+        self.setMaximumWidth(LAYOUT_MAX_WIDTH)
 
         self.navigation_buttons = {}
 
@@ -35,12 +37,11 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(central_widget)
 
-        # Noto Sans의 글자 위 여백을 보정해 화면상 Header 위 여백을 48px에 맞춤
         layout.setContentsMargins(
-            GRID_PC_PADDING_X,
-            GRID_PC_PADDING_Y - SPACE_XS,
-            GRID_PC_PADDING_X,
-            GRID_PC_PADDING_Y,
+            PAGE_PADDING_X,
+            PAGE_PADDING_Y,
+            PAGE_PADDING_X,
+            PAGE_PADDING_Y,
         )
 
         # Header와 아래 Container 사이 간격 24px
@@ -51,13 +52,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(header_label)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(GRID_PC_GUTTER)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(SPACE_MD)
 
         navigation_frame = self._create_navigation()
         page_frame = self._create_pages()
 
-        content_layout.addWidget(navigation_frame, 3)
-        content_layout.addWidget(page_frame, 9)
+        content_layout.addWidget(navigation_frame)
+        content_layout.addWidget(page_frame, 1)
 
         layout.addLayout(content_layout, 1)
 
@@ -65,6 +67,7 @@ class MainWindow(QMainWindow):
     def _create_navigation(self) -> QFrame:
         navigation_frame = QFrame()
         navigation_frame.setObjectName("navigationFrame")
+        navigation_frame.setFixedWidth(SIDEBAR_WIDTH)
 
         layout = QVBoxLayout(navigation_frame)
         layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
@@ -75,22 +78,43 @@ class MainWindow(QMainWindow):
         self.navigation_group.setExclusive(True)
 
         navigation_items = [
-            ("home", "Home"),
-            ("data", "Data Lab        (데이터 탐색)"),
-            ("preprocessing", "Preprocessing  (데이터 전처리)"),
-            ("regression", "Regression        (회귀)"),
-            ("classification", "Classification    (분류)"),
-            ("evaluation", "Evaluation      (모델 평가)"),
-            ("selection", "Model Selection  (모델 선택)"),
-            ("unsupervised", "Unsupervised   (비지도 학습)"),
-            ("final", "Final Experiment  (종합 실습)"),
+            ("home", "Home", ""),
+            ("data", "Data Lab", "(데이터 탐색)"),
+            ("preprocessing", "Preprocessing", "(데이터 전처리)"),
+            ("regression", "Regression", "(회귀)"),
+            ("classification", "Classification", "(분류)"),
+            ("evaluation", "Evaluation", "(모델 평가)"),
+            ("selection", "Model Selection", "(모델 선택)"),
+            ("unsupervised", "Unsupervised", "(비지도 학습)"),
+            ("final", "Final Experiment", "(종합 실습)"),
         ]
 
-        for page_name, text in navigation_items:
-            button = QPushButton(text)
+        for page_name, english, korean in navigation_items:
+            button = QPushButton()
             button.setObjectName("navigationButton")
             button.setCheckable(True)
+            button.setAccessibleName(f"{english} {korean}".strip())
             button.clicked.connect(lambda checked=False, name=page_name: self.switch_page(name))
+
+            text_layout = QHBoxLayout(button)
+            text_layout.setContentsMargins(SPACE_XS, SPACE_XS, SPACE_XS, SPACE_XS)
+            text_layout.setSpacing(SPACE_XS)
+
+            english_label = QLabel(english)
+            english_label.setObjectName("navigationButtonText")
+            english_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            english_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            text_layout.addWidget(english_label)
+            text_layout.addStretch()
+
+            if korean:
+                korean_label = QLabel(korean)
+                korean_label.setObjectName("navigationButtonText")
+                korean_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                korean_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                text_layout.addWidget(korean_label)
+
+            button.setMinimumHeight(english_label.sizeHint().height() + 2 * SPACE_XS)
 
             self.navigation_group.addButton(button)
             self.navigation_buttons[page_name] = button

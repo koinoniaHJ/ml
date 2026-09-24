@@ -3,23 +3,26 @@ import sys
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication
 
-from common.paths import FONT_PATH
+from common.paths import FONT_PATHS
 from common.styles import APP_STYLE
-from common.theme import COLOR_OFF_BLACK, COLOR_OFF_WHITE, COLOR_SECONDARY
+from common.theme import (
+    COLOR_OFF_BLACK, COLOR_OFF_WHITE, COLOR_SECONDARY,
+    FONT_FAMILY, FONT_SIZE_SM,
+)
 from ui.main_window import MainWindow
 
 
 # 프로젝트에서 사용할 Font를 등록
 def load_font(app: QApplication):
-    font_id = QFontDatabase.addApplicationFont(str(FONT_PATH))
+    font_ids = [
+        QFontDatabase.addApplicationFont(str(font_path))
+        for font_path in FONT_PATHS
+    ]
 
-    if font_id == -1:
-        return
-
-    font_families = QFontDatabase.applicationFontFamilies(font_id)
-
-    if font_families:
-        app.setFont(QFont(font_families[0], 10))
+    if any(font_id != -1 for font_id in font_ids):
+        font = QFont(FONT_FAMILY)
+        font.setPixelSize(FONT_SIZE_SM)
+        app.setFont(font)
 
 
 # Windows Theme 영향을 받지 않도록 기본 Palette를 설정

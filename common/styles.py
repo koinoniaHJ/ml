@@ -1,17 +1,22 @@
+# 애플리케이션 전체에 적용할 Qt 스타일시트
 from common.theme import (
+    COLOR_BLUE, COLOR_LIGHT_BLUE,
     COLOR_OFF_BLACK, COLOR_OFF_WHITE, COLOR_PRIMARY, COLOR_SECONDARY, FONT_FAMILY,
-    FONT_SIZE_BASE, FONT_SIZE_HEADER, FONT_SIZE_LARGE, FONT_SIZE_SECTION, FONT_SIZE_SMALL, FONT_SIZE_TABLE,
+    FONT_SIZE_2XL, FONT_SIZE_LG, FONT_SIZE_MD, FONT_SIZE_SM, FONT_SIZE_XL,
+    FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
     RADIUS_MD, RADIUS_SM, SCROLLBAR_RADIUS, SCROLLBAR_SIZE, SPACE_XS, SPACE_SM, SPACE_MD, SPACE_LG,
 )
 
 
-# QSS: PySide6/Qt 위젯의 색상, 글꼴, 여백, 테두리 같은 UI 스타일을 지정하는 문법
-# f""": 여러 줄 문자열, 문자열 안에 {변수} 값을 넣을 수 있게 한다.
+# QSS는 PySide6 위젯의 색상, 글꼴, 여백, 테두리 같은 화면 스타일을 지정한다.
+# `#이름`은 위젯의 setObjectName("이름")과 일치해야 한다.
+# f""" 문자열을 사용해 디자인 변수의 값을 QSS에 넣는다.
 APP_STYLE = f"""
 QWidget {{
     color: {COLOR_OFF_BLACK};
     font-family: "{FONT_FAMILY}";
-    font-size: {FONT_SIZE_BASE}pt;
+    font-size: {FONT_SIZE_MD}px;
+    font-weight: {FONT_WEIGHT_REGULAR};
 }}
 
 QMainWindow#mainWindow,
@@ -20,7 +25,7 @@ QWidget#centralWidget {{
 }}
 
 
-/* Header */
+/* 상단 프로그램 제목 */
 
 QLabel#headerLabel {{
     background-color: transparent;
@@ -28,11 +33,11 @@ QLabel#headerLabel {{
     border: none;
     margin: 0px;
     padding: 0px;
-    font-size: {FONT_SIZE_HEADER}pt;
+    font-size: {FONT_SIZE_2XL}px;
 }}
 
 
-/* Main Container */
+/* 사이드 메뉴와 메인 페이지 영역 */
 
 QFrame#navigationFrame,
 QFrame#pageFrame {{
@@ -51,7 +56,7 @@ QLabel {{
 }}
 
 
-/* Page Title */
+/* 각 페이지의 제목 */
 
 QLabel#pageTitle {{
     background-color: {COLOR_SECONDARY};
@@ -59,32 +64,41 @@ QLabel#pageTitle {{
     border: none;
     border-radius: {RADIUS_SM}px;
     padding: {SPACE_XS}px {SPACE_SM}px;
-    font-size: {FONT_SIZE_LARGE}pt;
+    font-size: {FONT_SIZE_XL}px;
 }}
 
 
-/* Section Title */
+/* 섹션 제목, 본문 설명, 작은 안내 문구 */
 
 QLabel#sectionTitle {{
     color: {COLOR_OFF_BLACK};
-    font-size: {FONT_SIZE_SECTION}pt;
+    font-size: {FONT_SIZE_LG}px;
+}}
+
+QLabel#bodyText {{
+    font-size: {FONT_SIZE_MD}px;
 }}
 
 QLabel#smallText {{
-    font-size: {FONT_SIZE_SMALL}pt;
+    font-size: {FONT_SIZE_SM}px;
 }}
 
 
-/* Navigation */
+/* 왼쪽 사이드 메뉴 */
 
 QPushButton#navigationButton {{
     background-color: transparent;
     color: {COLOR_OFF_BLACK};
     border: none;
     border-radius: {RADIUS_SM}px;
-    padding: {SPACE_XS}px;
-    text-align: left;
-    font-size: {FONT_SIZE_SMALL}pt;
+    padding: 0px;
+    font-size: {FONT_SIZE_SM}px;
+}}
+
+QLabel#navigationButtonText {{
+    background-color: transparent;
+    color: {COLOR_OFF_BLACK};
+    font-size: {FONT_SIZE_SM}px;
 }}
 
 QPushButton#navigationButton:checked {{
@@ -93,35 +107,180 @@ QPushButton#navigationButton:checked {{
 }}
 
 
-/* Home */
+/* Home 페이지 기본 영역 */
 
 QWidget#homePage,
 QWidget#placeholderPage {{
     background-color: transparent;
 }}
 
-QLabel#homeGuideLabel,
-QLabel#placeholderTitle {{
-    font-size: {FONT_SIZE_LARGE}pt;
+QLabel#homeGuideLabel {{
+    font-size: {FONT_SIZE_LG}px;
+    font-weight: {FONT_WEIGHT_BOLD};
 }}
 
-QPushButton#datasetButton {{
-    background-color: {COLOR_SECONDARY};
+QLabel#placeholderTitle {{
+    font-size: {FONT_SIZE_XL}px;
+}}
+
+/* AI·ML·DL 관계 다이어그램 */
+
+QFrame#machineLearningDiagram,
+QFrame#mlLayer {{
+    background-color: {COLOR_LIGHT_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QFrame#aiLayer,
+QFrame#dlLayer {{
+    background-color: {COLOR_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QFrame#machineLearningDiagram QLabel {{
+    color: {COLOR_OFF_BLACK};
+}}
+
+QLabel#diagramTitle {{
+    font-size: {FONT_SIZE_LG}px;
+    font-weight: {FONT_WEIGHT_BOLD};
+}}
+
+QLabel#diagramText {{
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+QLabel#diagramSummary {{
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+/* 일반 프로그램과 머신러닝 비교 */
+
+QFrame#programComparisonSection {{
+    background-color: {COLOR_LIGHT_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QFrame#programComparisonCard {{
+    background-color: {COLOR_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QFrame#programComparisonContentCard {{
+    background-color: {COLOR_OFF_WHITE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QLabel#programComparisonTitle {{
+    font-size: {FONT_SIZE_LG}px;
+    font-weight: {FONT_WEIGHT_BOLD};
+}}
+
+QLabel#programComparisonText,
+QLabel#programComparisonDefinitions {{
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+/* 지도·비지도·강화학습 안내 */
+
+QFrame#learningMethodsSection {{
+    background-color: {COLOR_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QFrame#learningIntroCard,
+QFrame#learningDetailCard,
+QFrame#learningMethodCard {{
+    background-color: {COLOR_LIGHT_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QLabel#learningIntroText,
+QLabel#learningMethodText,
+QLabel#learningDetailText {{
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+QLabel#learningMethodTitle {{
+    font-size: {FONT_SIZE_LG}px;
+    font-weight: {FONT_WEIGHT_BOLD};
+}}
+
+QLabel#learningSectionTitle {{
+    font-size: {FONT_SIZE_LG}px;
+    font-weight: {FONT_WEIGHT_BOLD};
+}}
+
+QPushButton#learningDetailsToggle {{
+    background-color: transparent;
+    color: {COLOR_OFF_BLACK};
+    border: none;
+    padding: {SPACE_XS}px;
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+/* Dataset 선택 카드 */
+
+QFrame#datasetSelectionSection {{
+    background-color: {COLOR_LIGHT_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QLabel#datasetIntroductionText {{
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+QFrame#datasetIntroductionCard {{
+    background-color: {COLOR_BLUE};
+    border: none;
+    border-radius: {RADIUS_MD}px;
+}}
+
+QFrame#datasetCard {{
+    background-color: {COLOR_BLUE};
     color: {COLOR_OFF_BLACK};
     border: none;
     border-radius: {RADIUS_MD}px;
-    padding: {SPACE_MD}px {SPACE_SM}px;
-    font-size: {FONT_SIZE_SMALL}pt;
 }}
 
-QPushButton#datasetButton:hover,
-QPushButton#datasetButton:pressed {{
-    background-color: {COLOR_SECONDARY};
+QLabel#datasetTitle {{
+    color: {COLOR_OFF_BLACK};
+    font-size: {FONT_SIZE_LG}px;
+    font-weight: {FONT_WEIGHT_BOLD};
+}}
+
+QLabel#datasetText {{
+    color: {COLOR_OFF_BLACK};
+    font-size: {FONT_SIZE_MD}px;
+    font-weight: {FONT_WEIGHT_REGULAR};
+}}
+
+QPushButton#datasetSelectButton {{
+    background-color: {COLOR_LIGHT_BLUE};
+    color: {COLOR_OFF_BLACK};
+    border: none;
+    border-radius: {RADIUS_SM}px;
+    padding: {SPACE_XS}px;
+    font-size: {FONT_SIZE_MD}px;
+    font-weight: {FONT_WEIGHT_REGULAR};
+}}
+
+QPushButton#datasetSelectButton:hover,
+QPushButton#datasetSelectButton:pressed {{
+    background-color: {COLOR_LIGHT_BLUE};
     color: {COLOR_OFF_BLACK};
 }}
 
 
-/* Data Lab */
+/* Data Lab 페이지 기본 영역 */
 
 QScrollArea {{
     background-color: transparent;
@@ -133,7 +292,7 @@ QScrollArea > QWidget > QWidget {{
 }}
 
 
-/* ComboBox */
+/* Dataset과 열을 선택하는 콤보박스 */
 
 QComboBox#dataControl {{
     background-color: {COLOR_OFF_WHITE};
@@ -141,7 +300,7 @@ QComboBox#dataControl {{
     border: 1px solid {COLOR_PRIMARY};
     border-radius: {RADIUS_SM}px;
     padding: {SPACE_XS}px {SPACE_LG}px {SPACE_XS}px {SPACE_XS}px;
-    font-size: {FONT_SIZE_SMALL}pt;
+    font-size: {FONT_SIZE_MD}px;
 }}
 
 QComboBox#dataControl:disabled {{
@@ -168,7 +327,7 @@ QComboBox#dataControl QAbstractItemView {{
     color: {COLOR_OFF_BLACK};
     border: 1px solid {COLOR_PRIMARY};
     border-radius: {RADIUS_SM}px;
-    padding: 4px;
+    padding: {SPACE_XS}px;
     outline: none;
     selection-background-color: {COLOR_SECONDARY};
     selection-color: {COLOR_OFF_BLACK};
@@ -178,9 +337,9 @@ QComboBox#dataControl QAbstractItemView::item {{
     background-color: {COLOR_OFF_WHITE};
     color: {COLOR_OFF_BLACK};
     border: none;
-    border-radius: 4px;
+    border-radius: {RADIUS_SM}px;
     padding: {SPACE_XS}px;
-    min-height: 24px;
+    min-height: {SPACE_MD}px;
 }}
 
 QComboBox#dataControl QAbstractItemView::item:selected {{
@@ -189,7 +348,7 @@ QComboBox#dataControl QAbstractItemView::item:selected {{
 }}
 
 
-/* Data Lab Button */
+/* Data Lab 실행 버튼과 개념 선택 버튼 */
 
 QPushButton#dataButton,
 QPushButton#conceptButton {{
@@ -198,7 +357,7 @@ QPushButton#conceptButton {{
     border: 1px solid {COLOR_PRIMARY};
     border-radius: {RADIUS_SM}px;
     padding: {SPACE_XS}px {SPACE_SM}px;
-    font-size: {FONT_SIZE_SMALL}pt;
+    font-size: {FONT_SIZE_MD}px;
 }}
 
 QPushButton#dataButton:hover,
@@ -214,7 +373,7 @@ QPushButton#conceptButton:checked {{
 }}
 
 
-/* Data Preview */
+/* 데이터 미리보기 표 */
 
 QTableWidget#dataPreviewTable {{
     background-color: {COLOR_OFF_WHITE};
@@ -223,7 +382,7 @@ QTableWidget#dataPreviewTable {{
     border: 1px solid {COLOR_PRIMARY};
     gridline-color: {COLOR_PRIMARY};
     font-family: "{FONT_FAMILY}";
-    font-size: {FONT_SIZE_TABLE}pt;
+    font-size: {FONT_SIZE_MD}px;
 }}
 
 QTableWidget#dataPreviewTable QHeaderView {{
@@ -237,7 +396,7 @@ QTableWidget#dataPreviewTable QHeaderView::section {{
     border-bottom: 1px solid {COLOR_PRIMARY};
     padding: {SPACE_XS}px;
     font-family: "{FONT_FAMILY}";
-    font-size: {FONT_SIZE_TABLE}pt;
+    font-size: {FONT_SIZE_MD}px;
 }}
 
 QTableWidget#dataPreviewTable::item {{
@@ -251,18 +410,18 @@ QTableWidget#dataPreviewTable::item:selected {{
 }}
 
 
-/* Python Code */
+/* Python 예제 코드 */
 
 QPlainTextEdit#codeView {{
     background-color: {COLOR_OFF_WHITE};
     color: {COLOR_OFF_BLACK};
     border: 1px solid {COLOR_PRIMARY};
     border-radius: {RADIUS_SM}px;
-    font-size: {FONT_SIZE_SMALL}pt;
+    font-size: {FONT_SIZE_MD}px;
 }}
 
 
-/* Scrollbar */
+/* 세로·가로 스크롤바 */
 
 QScrollBar:vertical {{
     background: transparent;
