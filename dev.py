@@ -1,3 +1,4 @@
+# Python 파일 변경을 감지해 개발 중인 애플리케이션을 자동 재시작
 import subprocess
 import sys
 import time
@@ -36,7 +37,7 @@ def start_app() -> subprocess.Popen:
     return subprocess.Popen([sys.executable, "main.py"], cwd=PROJECT_ROOT)
 
 
-def stop_app(process: subprocess.Popen | None):
+def stop_app(process: subprocess.Popen | None) -> None:
     if process is None or process.poll() is not None:
         return
 
@@ -49,7 +50,7 @@ def stop_app(process: subprocess.Popen | None):
         process.wait()
 
 
-def main():
+def main() -> None:
     file_state = collect_file_state()
     process = start_app()
 

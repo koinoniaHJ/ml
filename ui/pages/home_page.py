@@ -1,7 +1,9 @@
 # 머신러닝 개념 안내와 데이터셋 선택을 제공하는 홈 화면을 구성
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy,
+    QVBoxLayout, QWidget,
 )
 
 from common.theme import (
@@ -15,6 +17,7 @@ class DiagramLayer(QWidget):
     # 다이어그램 레이어의 제목과 색상 프레임 초기화
     def __init__(self, title: str, object_name: str) -> None:
         super().__init__()
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
 
         self.frame = QFrame(self)
         self.frame.setObjectName(object_name)
@@ -24,8 +27,20 @@ class DiagramLayer(QWidget):
         self.title_label.setObjectName("diagramTitle")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+    # 내부 콘텐츠와 패딩을 기준으로 필요한 레이어 크기를 전달
+    def sizeHint(self) -> QSize:
+        title_size = self.title_label.sizeHint()
+        frame_size = self.frame.sizeHint()
+        return QSize(
+            max(title_size.width(), frame_size.width()),
+            title_size.height() // 2 + frame_size.height(),
+        )
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
+
     # 제목의 중심이 색상 영역 위쪽 경계와 겹치도록 배치
-    def resizeEvent(self, event) -> None:
+    def resizeEvent(self, event: QResizeEvent) -> None:
         title_height = self.title_label.sizeHint().height()
         frame_top = title_height // 2
 
@@ -79,14 +94,12 @@ class HomePage(QWidget):
     def _create_machine_learning_section(self) -> QFrame:
         diagram = QFrame()
         diagram.setObjectName("machineLearningDiagram")
-        diagram.setMinimumHeight(580)
 
         diagram_layout = QVBoxLayout(diagram)
         diagram_layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
         diagram_layout.setSpacing(0)
 
         ai_layer = DiagramLayer("AI", "aiLayer")
-        ai_layer.setMinimumHeight(400)
         ai_layout = ai_layer.content_layout
         ai_layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
         ai_layout.setSpacing(SPACE_SM)
@@ -96,7 +109,6 @@ class HomePage(QWidget):
             "diagramText",
         ))
         ml_layer = DiagramLayer("ML", "mlLayer")
-        ml_layer.setMinimumHeight(250)
         ml_layout = ml_layer.content_layout
         ml_layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
         ml_layout.setSpacing(SPACE_SM)
@@ -107,7 +119,6 @@ class HomePage(QWidget):
             "diagramText",
         ))
         dl_layer = DiagramLayer("DL", "dlLayer")
-        dl_layer.setMinimumHeight(100)
         dl_layout = dl_layer.content_layout
         dl_layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
         dl_layout.addWidget(self._create_diagram_label(
@@ -116,9 +127,9 @@ class HomePage(QWidget):
             "diagramText",
         ))
 
-        ml_layout.addWidget(dl_layer, 1)
-        ai_layout.addWidget(ml_layer, 1)
-        diagram_layout.addWidget(ai_layer, 1)
+        ml_layout.addWidget(dl_layer)
+        ai_layout.addWidget(ml_layer)
+        diagram_layout.addWidget(ai_layer)
         diagram_layout.addSpacing(SPACE_MD)
 
         summary_layout = QVBoxLayout()

@@ -75,6 +75,22 @@ QLabel#sectionTitle {{
     font-size: {FONT_SIZE_LG}px;
 }}
 
+QLabel#stepTitle,
+QLabel#encodingTitle {{
+    color: {COLOR_OFF_BLACK};
+    font-size: {FONT_SIZE_LG}px;
+    font-weight: {FONT_WEIGHT_BOLD};
+}}
+
+QLabel#sectionBadge {{
+    background-color: {COLOR_PRIMARY};
+    color: {COLOR_OFF_BLACK};
+    border: none;
+    border-radius: {RADIUS_SM}px;
+    padding: {SPACE_XS}px {SPACE_SM}px;
+    font-size: {FONT_SIZE_LG}px;
+}}
+
 QLabel#bodyText {{
     font-size: {FONT_SIZE_MD}px;
 }}
@@ -137,10 +153,6 @@ QFrame#dlLayer {{
     background-color: {COLOR_BLUE};
     border: none;
     border-radius: {RADIUS_MD}px;
-}}
-
-QFrame#machineLearningDiagram QLabel {{
-    color: {COLOR_OFF_BLACK};
 }}
 
 QLabel#diagramTitle {{
@@ -208,11 +220,7 @@ QLabel#learningDetailText {{
     font-size: {FONT_SIZE_MD}px;
 }}
 
-QLabel#learningMethodTitle {{
-    font-size: {FONT_SIZE_LG}px;
-    font-weight: {FONT_WEIGHT_BOLD};
-}}
-
+QLabel#learningMethodTitle,
 QLabel#learningSectionTitle {{
     font-size: {FONT_SIZE_LG}px;
     font-weight: {FONT_WEIGHT_BOLD};
@@ -246,7 +254,6 @@ QFrame#datasetIntroductionCard {{
 
 QFrame#datasetCard {{
     background-color: {COLOR_BLUE};
-    color: {COLOR_OFF_BLACK};
     border: none;
     border-radius: {RADIUS_MD}px;
 }}
@@ -273,13 +280,6 @@ QPushButton#datasetSelectButton {{
     font-weight: {FONT_WEIGHT_REGULAR};
 }}
 
-QPushButton#datasetSelectButton:hover,
-QPushButton#datasetSelectButton:pressed {{
-    background-color: {COLOR_LIGHT_BLUE};
-    color: {COLOR_OFF_BLACK};
-}}
-
-
 /* Data Lab 페이지 기본 영역 */
 
 QScrollArea {{
@@ -295,6 +295,16 @@ QScrollArea > QWidget > QWidget {{
 /* Dataset과 열을 선택하는 콤보박스 */
 
 QComboBox#dataControl {{
+    background-color: {COLOR_OFF_WHITE};
+    color: {COLOR_OFF_BLACK};
+    border: 1px solid {COLOR_PRIMARY};
+    border-radius: {RADIUS_SM}px;
+    padding: {SPACE_XS}px {SPACE_LG}px {SPACE_XS}px {SPACE_XS}px;
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+QSpinBox#dataControl,
+QDoubleSpinBox#dataControl {{
     background-color: {COLOR_OFF_WHITE};
     color: {COLOR_OFF_BLACK};
     border: 1px solid {COLOR_PRIMARY};
@@ -372,6 +382,94 @@ QPushButton#conceptButton:checked {{
     border: 1px solid {COLOR_SECONDARY};
 }}
 
+/* Preprocessing 단계와 결과 Card */
+
+QPushButton#stepButton {{
+    background-color: {COLOR_OFF_WHITE};
+    color: {COLOR_OFF_BLACK};
+    border: 1px solid {COLOR_PRIMARY};
+    border-radius: {RADIUS_SM}px;
+    padding: {SPACE_XS}px {SPACE_SM}px;
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+QPushButton#stepButton:hover,
+QPushButton#stepButton:checked {{
+    background-color: {COLOR_SECONDARY};
+    border: 1px solid {COLOR_SECONDARY};
+}}
+
+QPushButton#stepButton:disabled {{
+    background-color: {COLOR_OFF_WHITE};
+    color: {COLOR_PRIMARY};
+    border: 1px solid {COLOR_PRIMARY};
+}}
+
+QCheckBox#dataCheckBox {{
+    spacing: {SPACE_XS}px;
+    padding: {SPACE_XS}px 0px;
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+QCheckBox#dataCheckBox::indicator {{
+    width: {SPACE_SM}px;
+    height: {SPACE_SM}px;
+}}
+
+QFrame#preprocessingCard,
+QLabel#preprocessingInfoCard {{
+    background-color: transparent;
+    color: {COLOR_OFF_BLACK};
+    border: 1px solid {COLOR_PRIMARY};
+    border-radius: {RADIUS_SM}px;
+}}
+
+QLabel#preprocessingInfoCard,
+QLabel#preprocessingResultCard,
+QLabel#codeBlock {{
+    padding: {SPACE_SM}px;
+    font-size: {FONT_SIZE_MD}px;
+}}
+
+QLabel#preprocessingResultCard {{
+    background-color: {COLOR_BLUE};
+    color: {COLOR_OFF_BLACK};
+    border: none;
+    border-radius: {RADIUS_SM}px;
+}}
+
+QFrame#codeBlockCard {{
+    background-color: {COLOR_BLUE};
+    border: none;
+    border-radius: {RADIUS_SM}px;
+}}
+
+QLabel#codeBlockTitle {{
+    color: {COLOR_OFF_BLACK};
+    font-size: {FONT_SIZE_MD}px;
+    font-weight: 700;
+}}
+
+QLabel#codeBlock {{
+    background-color: {COLOR_OFF_WHITE};
+    color: {COLOR_OFF_BLACK};
+    border: none;
+    border-radius: {RADIUS_SM}px;
+}}
+
+QFrame#conceptDetailCard,
+QLabel#graphDescription {{
+    background-color: transparent;
+    color: {COLOR_OFF_BLACK};
+    border: 1px solid {COLOR_PRIMARY};
+    border-radius: {RADIUS_SM}px;
+}}
+
+QLabel#graphDescription {{
+    padding: {SPACE_SM}px;
+    font-size: {FONT_SIZE_MD}px;
+}}
+
 
 /* 데이터 미리보기 표 */
 
@@ -381,6 +479,7 @@ QTableWidget#dataPreviewTable {{
     color: {COLOR_OFF_BLACK};
     border: 1px solid {COLOR_PRIMARY};
     gridline-color: {COLOR_PRIMARY};
+    outline: none;
     font-family: "{FONT_FAMILY}";
     font-size: {FONT_SIZE_MD}px;
 }}
@@ -407,17 +506,7 @@ QTableWidget#dataPreviewTable::item {{
 QTableWidget#dataPreviewTable::item:selected {{
     background-color: {COLOR_SECONDARY};
     color: {COLOR_OFF_BLACK};
-}}
-
-
-/* Python 예제 코드 */
-
-QPlainTextEdit#codeView {{
-    background-color: {COLOR_OFF_WHITE};
-    color: {COLOR_OFF_BLACK};
-    border: 1px solid {COLOR_PRIMARY};
-    border-radius: {RADIUS_SM}px;
-    font-size: {FONT_SIZE_MD}px;
+    border: none;
 }}
 
 

@@ -1,36 +1,36 @@
 # 애플리케이션의 메인 창과 페이지 전환 구조를 구성
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QButtonGroup, QFrame, QHBoxLayout, QLabel, QMainWindow, QPushButton,
+    QButtonGroup, QFrame, QHBoxLayout, QLabel, QLayout, QMainWindow, QPushButton,
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from common.theme import (
-    LAYOUT_MAX_WIDTH, PAGE_PADDING_X, PAGE_PADDING_Y, SIDEBAR_WIDTH,
-    SPACE_XS, SPACE_MD, WINDOW_HEIGHT,
+    PAGE_PADDING_X, PAGE_PADDING_Y, SIDEBAR_WIDTH, SPACE_MD, SPACE_XS,
+    WINDOW_INITIAL_HEIGHT, WINDOW_INITIAL_WIDTH,
 )
 from ui.pages.data_lab_page import DataLabPage
 from ui.pages.home_page import HomePage
 from ui.pages.placeholder_page import PlaceholderPage
+from ui.pages.preprocessing_page import PreprocessingPage
 
 
 class MainWindow(QMainWindow):
-    # Main Window의 기본 UI와 Page를 구성
-    def __init__(self):
+    # 메인 창의 기본 UI와 페이지를 구성
+    def __init__(self) -> None:
         super().__init__()
 
         self.setObjectName("mainWindow")
         self.setWindowTitle("Machine Learning Lab")
-        self.resize(LAYOUT_MAX_WIDTH, WINDOW_HEIGHT)
-        self.setMaximumWidth(LAYOUT_MAX_WIDTH)
+        self.resize(WINDOW_INITIAL_WIDTH, WINDOW_INITIAL_HEIGHT)
 
-        self.navigation_buttons = {}
+        self.navigation_buttons: dict[str, QPushButton] = {}
 
         self._setup_ui()
         self.switch_page("home")
 
-    # Header, Navigation, Page 영역을 구성
-    def _setup_ui(self):
+    # 헤더, 사이드 메뉴, 페이지 영역을 구성
+    def _setup_ui(self) -> None:
         central_widget = QWidget()
         central_widget.setObjectName("centralWidget")
         self.setCentralWidget(central_widget)
@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
             PAGE_PADDING_Y,
         )
 
-        # Header와 아래 Container 사이 간격 24px
+        # 헤더와 아래 콘텐츠 사이에 기본 간격을 적용
         layout.setSpacing(SPACE_MD)
 
         header_label = QLabel("Machine Learning Lab")
@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(content_layout, 1)
 
-    # 왼쪽 Navigation 영역을 생성
+    # 왼쪽 사이드 메뉴 영역을 생성
     def _create_navigation(self) -> QFrame:
         navigation_frame = QFrame()
         navigation_frame.setObjectName("navigationFrame")
@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
         layout.setSpacing(0)
 
-        # QButtonGroup: 여러 Button 중 하나만 선택된 상태로 유지하는 그룹
+        # 여러 메뉴 중 하나만 선택된 상태로 유지
         self.navigation_group = QButtonGroup(self)
         self.navigation_group.setExclusive(True)
 
@@ -99,6 +99,7 @@ class MainWindow(QMainWindow):
             text_layout = QHBoxLayout(button)
             text_layout.setContentsMargins(SPACE_XS, SPACE_XS, SPACE_XS, SPACE_XS)
             text_layout.setSpacing(SPACE_XS)
+            text_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
 
             english_label = QLabel(english)
             english_label.setObjectName("navigationButtonText")
@@ -114,8 +115,6 @@ class MainWindow(QMainWindow):
                 korean_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
                 text_layout.addWidget(korean_label)
 
-            button.setMinimumHeight(english_label.sizeHint().height() + 2 * SPACE_XS)
-
             self.navigation_group.addButton(button)
             self.navigation_buttons[page_name] = button
             layout.addWidget(button)
@@ -123,7 +122,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         return navigation_frame
 
-    # 오른쪽 Page 영역과 각 Stage Page를 생성
+    # 오른쪽 페이지 영역과 단계별 페이지를 생성
     def _create_pages(self) -> QFrame:
         page_frame = QFrame()
         page_frame.setObjectName("pageFrame")
@@ -136,11 +135,12 @@ class MainWindow(QMainWindow):
 
         self.home_page = HomePage()
         self.data_lab_page = DataLabPage()
+        self.preprocessing_page = PreprocessingPage()
 
         self.pages = {
             "home": self.home_page,
             "data": self.data_lab_page,
-            "preprocessing": PlaceholderPage("Preprocessing"),
+            "preprocessing": self.preprocessing_page,
             "regression": PlaceholderPage("Regression"),
             "classification": PlaceholderPage("Classification"),
             "evaluation": PlaceholderPage("Evaluation"),
@@ -153,16 +153,17 @@ class MainWindow(QMainWindow):
             self.page_stack.addWidget(page)
 
         self.home_page.data_source_selected.connect(self._handle_data_source_selected)
+        self.data_lab_page.dataset_loaded.connect(self.preprocessing_page.set_dataset)
         layout.addWidget(self.page_stack)
 
         return page_frame
 
-    # 선택한 Navigation Page로 전환
-    def switch_page(self, page_name: str):
+    # 선택한 사이드 메뉴 페이지로 전환
+    def switch_page(self, page_name: str) -> None:
         self.page_stack.setCurrentWidget(self.pages[page_name])
         self.navigation_buttons[page_name].setChecked(True)
 
-    # Home에서 선택한 Dataset Source를 Data Lab으로 전달
-    def _handle_data_source_selected(self, source: str):
+    # 홈에서 선택한 데이터셋 출처를 Data Lab으로 전달
+    def _handle_data_source_selected(self, source: str) -> None:
         self.data_lab_page.set_data_source(source)
         self.switch_page("data")

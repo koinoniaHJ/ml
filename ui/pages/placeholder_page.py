@@ -1,10 +1,11 @@
+# 아직 구현되지 않은 메뉴에 표시할 임시 페이지를 구성
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
 class PlaceholderPage(QWidget):
     # 아직 구현하지 않은 Stage의 임시 화면을 구성
-    def __init__(self, title: str):
+    def __init__(self, title: str) -> None:
         super().__init__()
         self.setObjectName("placeholderPage")
 

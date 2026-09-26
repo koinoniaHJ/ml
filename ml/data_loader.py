@@ -1,8 +1,10 @@
 # 학습에 사용할 scikit-learn 기본 데이터와 CSV 데이터를 불러옴
+from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
 from sklearn.datasets import load_breast_cancer, load_diabetes, load_iris, load_wine
+from sklearn.utils import Bunch
 
 from common.paths import DATASETS_DIR
 
@@ -19,6 +21,11 @@ BUILTIN_DATASETS = {
         "target": "passed",
         "task_type": "classification",
         "class_names": ["미통과", "통과"],
+    },
+    "Preprocessing Sample": {
+        "path": DATASETS_DIR / "preprocessing_sample.csv",
+        "target": "result",
+        "task_type": "classification",
     },
     "Regression Sample": {
         "path": DATASETS_DIR / "regression_sample.csv",
@@ -52,6 +59,11 @@ SKLEARN_DATASETS = {
 }
 
 
+@lru_cache(maxsize=None)
+def _load_sklearn_bunch(name: str) -> Bunch:
+    return SKLEARN_DATASETS[name]["loader"](as_frame=True)
+
+
 # 프로그램에 포함된 CSV Dataset을 불러옴
 def load_builtin_dataset(name: str) -> pd.DataFrame:
     return pd.read_csv(BUILTIN_DATASETS[name]["path"])
@@ -74,8 +86,7 @@ def get_builtin_class_names(name: str) -> list[str] | None:
 
 # scikit-learn Sample Dataset을 DataFrame으로 변환
 def load_sklearn_dataset(name: str) -> pd.DataFrame:
-    data = SKLEARN_DATASETS[name]["loader"](as_frame=True)
-    return data.frame
+    return _load_sklearn_bunch(name).frame.copy()
 
 
 # scikit-learn Dataset에 미리 정의된 Target을 반환
@@ -90,7 +101,7 @@ def get_sklearn_task_type(name: str) -> str:
 
 # scikit-learn 분류 Dataset의 Target 숫자와 실제 Class 이름을 연결
 def get_sklearn_target_names(name: str) -> list[str] | None:
-    data = SKLEARN_DATASETS[name]["loader"]()
+    data = _load_sklearn_bunch(name)
 
     if not hasattr(data, "target_names"):
         return None
