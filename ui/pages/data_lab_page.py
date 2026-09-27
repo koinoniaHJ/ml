@@ -24,8 +24,9 @@ from ml.data_loader import (
     load_builtin_dataset, load_local_csv, load_sklearn_dataset,
 )
 from ml.data_summary import (
-    get_data_summary, get_feature_columns, get_identifier_columns, get_numeric_columns,
-    get_target_columns, get_target_unique_count,
+    get_data_quality_summary, get_data_summary, get_feature_columns,
+    get_identifier_columns, get_numeric_columns, get_numeric_statistics,
+    get_target_columns, get_target_distribution, get_target_unique_count,
 )
 from ui.widgets import ChevronComboBox
 
@@ -42,15 +43,28 @@ CONCEPT_DESCRIPTIONS = {
         "나타나며, 삭제하거나 다른 값으로 채울 때는 데이터의 의미와 모델 학습을 함께 고려해야 한다. "
         "구체적인 처리 방법은 데이터 전처리에서 다룬다."
     ),
+    "Descriptive Statistics (기술 통계)": (
+        "숫자 데이터의 중심과 퍼짐을 평균, 중앙값, 표준편차, 사분위수 등으로 요약한다. "
+        "평균은 값의 합을 개수로 나눈 값이고 중앙값은 정렬했을 때 가운데에 위치한 값이다. "
+        "표준편차는 값들이 평균 주변에 얼마나 퍼져 있는지를 나타낸다."
+    ),
+    "Duplicate (중복)": (
+        "모든 Column 값이 같은 Sample이 반복된 상태다. 중복은 분포와 학습 결과에 영향을 줄 수 있지만 "
+        "실제로 같은 값이 반복 관측된 것일 수도 있으므로 데이터의 의미를 확인한 뒤 처리한다."
+    ),
+    "Target Distribution": (
+        "Target 값이 어떤 범위나 Class에 얼마나 분포하는지 나타낸다. 분류에서는 Class별 Sample 비율을, "
+        "회귀에서는 Target의 중심과 범위를 확인한다."
+    ),
     "scikit-learn": "머신러닝 알고리즘과 전처리·평가 기능, 예제 Dataset을 제공하는 Python 라이브러리다.",
 }
 
 GRAPH_DESCRIPTIONS = {
-    "Line Plot": "<b>Line Plot(선 그래프)</b>: 순서가 있는 값의 변화나 흐름을 선으로 연결해 확인한다.",
-    "Bar Plot": "<b>Bar Plot(막대 그래프)</b>: 여러 항목의 숫자 값을 막대 높이로 비교한다.",
+    "Line Plot": "<b>Line Plot(선 그래프)</b>: 현재 데이터의 행 순서대로 값을 연결하여 변화나 흐름을 확인한다.",
+    "Bar Plot": "<b>Bar Plot(막대 그래프)</b>: 각 Sample의 항목과 숫자 값을 막대 높이로 비교한다. 같은 범주의 값을 자동으로 합치거나 평균내지 않는다.",
     "Scatter Plot": "<b>Scatter Plot(산점도)</b>: 각 점을 하나의 Sample로 나타내 두 값 사이의 관계를 확인한다.",
     "Histogram": "<b>Histogram(히스토그램)</b>: 숫자 데이터를 여러 구간으로 나누어 값이 어느 범위에 얼마나 모여 있는지 확인한다.",
-    "Box Plot": "<b>Box Plot(상자그림)</b>: 사분위수를 바탕으로 데이터의 중심과 퍼짐을 요약하고 이상치를 파악한다.",
+    "Box Plot": "<b>Box Plot(상자그림)</b>: 사분위수를 바탕으로 데이터의 중심과 퍼짐을 요약하고 잠재적인 이상치 후보를 확인한다.",
 }
 
 TASK_TYPE_LABELS = {
@@ -118,6 +132,7 @@ class DataLabPage(QWidget):
         self._create_dataset_source(layout)
         self._create_concept_section(layout)
         self._create_data_section(layout)
+        self._create_summary_section(layout)
         self._create_visualization_section(layout)
 
         layout.addStretch()
@@ -241,6 +256,20 @@ class DataLabPage(QWidget):
         self.target_guide_label.setWordWrap(True)
         information_layout.addWidget(self.target_guide_label)
 
+        self.task_type_title = QLabel("Problem Type")
+        self.task_type_title.setObjectName("sectionTitle")
+        information_layout.addWidget(self.task_type_title)
+
+        self.task_type_combo = ChevronComboBox()
+        self.task_type_combo.setObjectName("dataControl")
+        self.task_type_combo.currentIndexChanged.connect(self._change_task_type)
+        information_layout.addWidget(self.task_type_combo)
+
+        self.task_type_guide_label = QLabel()
+        self.task_type_guide_label.setObjectName("smallText")
+        self.task_type_guide_label.setWordWrap(True)
+        information_layout.addWidget(self.task_type_guide_label)
+
         feature_title = QLabel("Feature 후보")
         feature_title.setObjectName("sectionTitle")
         information_layout.addWidget(feature_title)
@@ -267,6 +296,72 @@ class DataLabPage(QWidget):
         data_layout.setColumnStretch(1, 3)
 
         layout.addLayout(data_layout)
+
+    # 기술 통계, 데이터 품질과 Target 분포를 표시
+    def _create_summary_section(self, layout: QVBoxLayout) -> None:
+        header = QHBoxLayout()
+        header.setSpacing(SPACE_SM)
+        header.addWidget(self._create_section_badge("Data Summary"))
+        guide = QLabel(
+            "전체 데이터를 기준으로 기초 통계, 결측 Sample, 중복 Sample과 Target 분포를 표시합니다."
+        )
+        guide.setObjectName("smallText")
+        guide.setWordWrap(True)
+        header.addWidget(guide, 1)
+        layout.addLayout(header)
+
+        cards = QGridLayout()
+        cards.setSpacing(SPACE_SM)
+
+        quality_card = QFrame()
+        quality_card.setObjectName("preprocessingCard")
+        quality_layout = QVBoxLayout(quality_card)
+        quality_layout.setContentsMargins(SPACE_SM, SPACE_SM, SPACE_SM, SPACE_SM)
+        quality_title = QLabel("Data Quality")
+        quality_title.setObjectName("sectionTitle")
+        quality_layout.addWidget(quality_title)
+        self.quality_summary_label = QLabel()
+        self.quality_summary_label.setObjectName("smallText")
+        self.quality_summary_label.setWordWrap(True)
+        quality_layout.addWidget(self.quality_summary_label)
+        quality_layout.addStretch()
+        cards.addWidget(quality_card, 0, 0)
+
+        statistics_card, self.statistics_table = self._create_summary_table("Numeric Statistics")
+        cards.addWidget(statistics_card, 0, 1)
+
+        self.target_summary_card, self.target_summary_table = self._create_summary_table(
+            "Target Summary"
+        )
+        cards.addWidget(self.target_summary_card, 0, 2)
+
+        cards.setColumnStretch(0, 1)
+        cards.setColumnStretch(1, 3)
+        cards.setColumnStretch(2, 2)
+        layout.addLayout(cards)
+
+    # Data Summary에서 사용하는 읽기 전용 Table Card를 생성
+    def _create_summary_table(self, title: str) -> tuple[QFrame, QTableWidget]:
+        card = QFrame()
+        card.setObjectName("preprocessingCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(SPACE_SM, SPACE_SM, SPACE_SM, SPACE_SM)
+        card_layout.setSpacing(SPACE_XS)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("sectionTitle")
+        card_layout.addWidget(title_label)
+
+        table = QTableWidget()
+        table.setObjectName("dataPreviewTable")
+        table.setMinimumHeight(220)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        table.verticalHeader().setVisible(False)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setHighlightSections(False)
+        card_layout.addWidget(table)
+        return card, table
 
     # Visualization 영역을 구성
     def _create_visualization_section(self, layout: QVBoxLayout):
@@ -348,7 +443,9 @@ class DataLabPage(QWidget):
 
         concepts = [
             "Dataset", "Sample", "Feature", "Target",
-            "Class", "Column · dtype", "Missing Value (결측치)", "scikit-learn",
+            "Class", "Column · dtype", "Missing Value (결측치)",
+            "Descriptive Statistics (기술 통계)", "Duplicate (중복)",
+            "Target Distribution", "scikit-learn",
         ]
 
         # 개념 버튼 중 하나만 선택된 상태로 유지
@@ -409,6 +506,12 @@ class DataLabPage(QWidget):
     # 선택한 Dataset Source에 맞게 Dataset 선택 UI를 변경
     def set_data_source(self, source: str):
         self.data_source = source
+        for widget in (
+            self.task_type_title,
+            self.task_type_combo,
+            self.task_type_guide_label,
+        ):
+            widget.hide()
         source_index = self.source_combo.findData(source)
 
         if source_index >= 0:
@@ -503,6 +606,7 @@ class DataLabPage(QWidget):
         self._configure_target()
         self._update_graph_columns()
         self._show_dataframe()
+        self._update_data_summary()
         self._emit_dataset_loaded()
 
     # Dataset Source에 따라 Target을 고정하거나 선택 가능하게 구성
@@ -542,7 +646,53 @@ class DataLabPage(QWidget):
             )
 
         self.target_combo.blockSignals(False)
+        self._configure_task_type()
         self._update_target_info()
+
+    # Local CSV의 Target 유무에 따라 사용자가 문제 유형을 선택하도록 구성
+    def _configure_task_type(self) -> None:
+        is_local_csv = self.data_source == "csv"
+        for widget in (
+            self.task_type_title,
+            self.task_type_combo,
+            self.task_type_guide_label,
+        ):
+            widget.setVisible(is_local_csv)
+
+        if not is_local_csv:
+            return
+
+        target = self._get_target_column()
+        previous_task_type = self.task_type
+        self.task_type_combo.blockSignals(True)
+        self.task_type_combo.clear()
+
+        if target is None:
+            self.task_type_combo.addItem("Clustering (군집화)", "clustering")
+            self.task_type_combo.setEnabled(False)
+            self.task_type = "clustering"
+            self.task_type_guide_label.setText(
+                "Target이 없으므로 비지도학습의 군집화 데이터로 설정합니다."
+            )
+        else:
+            self.task_type_combo.addItem("문제 유형을 선택하세요", "unknown")
+            self.task_type_combo.addItem("Classification (분류)", "classification")
+            self.task_type_combo.addItem("Regression (회귀)", "regression")
+            selected_task_type = (
+                previous_task_type
+                if previous_task_type in {"classification", "regression"}
+                else "unknown"
+            )
+            self.task_type_combo.setCurrentIndex(
+                self.task_type_combo.findData(selected_task_type)
+            )
+            self.task_type_combo.setEnabled(True)
+            self.task_type = selected_task_type
+            self.task_type_guide_label.setText(
+                "예측할 값이 범주라면 분류, 연속적인 숫자라면 회귀를 선택하세요."
+            )
+
+        self.task_type_combo.blockSignals(False)
 
     # 현재 선택된 Target Column을 반환
     def _get_target_column(self) -> str | None:
@@ -550,7 +700,18 @@ class DataLabPage(QWidget):
 
     # Target 변경 내용을 화면과 다음 Preprocessing 단계에 전달
     def _change_target(self, _index: int = -1) -> None:
+        self._configure_task_type()
         self._update_target_info()
+        self._update_data_summary()
+        self._emit_dataset_loaded()
+
+    # Local CSV에서 선택한 문제 유형을 현재 Dataset에 적용
+    def _change_task_type(self, _index: int = -1) -> None:
+        selected_task_type = self.task_type_combo.currentData()
+        if selected_task_type:
+            self.task_type = selected_task_type
+        self._update_target_info()
+        self._update_data_summary()
         self._emit_dataset_loaded()
 
     # 현재 Dataset과 Target 정보를 Preprocessing 페이지에 전달
@@ -628,6 +789,66 @@ class DataLabPage(QWidget):
             self.target_info_label.setText(target_text)
 
         self._update_concept_detail()
+
+    # 현재 전체 Dataset의 기술 통계, 품질과 Target 요약을 갱신
+    def _update_data_summary(self) -> None:
+        if self.dataframe.empty:
+            self.quality_summary_label.setText("표시할 데이터가 없습니다.")
+            self._populate_summary_table(self.statistics_table, pd.DataFrame())
+            self._populate_summary_table(self.target_summary_table, pd.DataFrame())
+            return
+
+        quality = get_data_quality_summary(self.dataframe)
+        self.quality_summary_label.setText(
+            f"결측치가 있는 Sample    {quality['missing_rows']}개\n"
+            f"중복 Sample    {quality['duplicate_rows']}개\n"
+            f"숫자형 Column    {quality['numeric_columns']}개\n"
+            f"범주형 Column    {quality['categorical_columns']}개"
+        )
+        self._populate_summary_table(
+            self.statistics_table,
+            get_numeric_statistics(self.dataframe),
+        )
+
+        target = self._get_target_column()
+        if target is None:
+            target_summary = pd.DataFrame({"안내": ["선택된 Target이 없습니다."]})
+        elif self.task_type == "regression" and pd.api.types.is_numeric_dtype(
+            self.dataframe[target]
+        ):
+            values = self.dataframe[target].dropna()
+            target_summary = pd.DataFrame({
+                "Metric": ["Count", "Mean", "Median", "Std", "Min", "Max"],
+                "Value": [
+                    values.count(), values.mean(), values.median(), values.std(),
+                    values.min(), values.max(),
+                ],
+            })
+        else:
+            target_summary = get_target_distribution(self.dataframe, target)
+        self._populate_summary_table(self.target_summary_table, target_summary)
+
+    # DataFrame을 Data Summary의 읽기 전용 Table에 표시
+    def _populate_summary_table(
+        self,
+        table: QTableWidget,
+        dataframe: pd.DataFrame,
+    ) -> None:
+        table.clear()
+        table.setRowCount(len(dataframe))
+        table.setColumnCount(len(dataframe.columns))
+        table.setHorizontalHeaderLabels([str(column) for column in dataframe.columns])
+
+        for row in range(len(dataframe)):
+            for column in range(len(dataframe.columns)):
+                value = dataframe.iloc[row, column]
+                if isinstance(value, (float, np.floating)):
+                    text = "-" if pd.isna(value) else f"{float(value):.3f}"
+                else:
+                    text = str(value)
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table.setItem(row, column, item)
 
     # 선택한 그래프에서 사용할 수 있는 Column을 선택 목록에 표시
     def _update_graph_columns(self):
@@ -877,6 +1098,24 @@ class DataLabPage(QWidget):
                 )
                 current_data.append(
                     f"현재 Dataset의 Missing Value (결측치)\n총 {total_missing}개\n{column_text}"
+                )
+
+        elif concept == "Descriptive Statistics (기술 통계)":
+            numeric_count = len(get_numeric_statistics(self.dataframe))
+            current_data.append(
+                f"현재 기술 통계를 표시하는 숫자형 Column\n{numeric_count}개"
+            )
+
+        elif concept == "Duplicate (중복)":
+            duplicate_count = int(self.dataframe.duplicated().sum())
+            current_data.append(f"현재 중복 Sample\n{duplicate_count}개")
+
+        elif concept == "Target Distribution":
+            if target is None:
+                current_data.append("현재 선택된 Target이 없다.")
+            else:
+                current_data.append(
+                    f"현재 Target\n{target}\n고유값 {get_target_unique_count(self.dataframe, target)}개"
                 )
 
         elif concept == "scikit-learn":

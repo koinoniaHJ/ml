@@ -1,8 +1,9 @@
 # Train/Test 분리와 대표적인 데이터 전처리를 실습하는 화면을 구성
+from copy import deepcopy
 from html import escape
 
 import pandas as pd
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QFrame, QGridLayout,
     QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea, QSizePolicy,
@@ -13,6 +14,7 @@ from common.theme import SPACE_MD, SPACE_SM, SPACE_XS
 from ml.data_loader import load_builtin_dataset
 from ml.data_summary import get_feature_columns
 from ml.preprocessing import (
+    PreprocessingArtifacts, PreprocessingResult, apply_preprocessing_pipeline,
     compare_scaler_fit, encode_target, get_class_ratios, impute_feature,
     one_hot_encode_feature, scale_features, split_dataset,
 )
@@ -31,13 +33,19 @@ CONCEPT_DESCRIPTIONS = {
     "fit()": "전처리에 필요한 평균, 최솟값, 범주 같은 변환 기준을 Train Data에서 구한다.",
     "transform()": "fit()으로 정한 기준을 실제 데이터에 적용한다.",
     "fit_transform()": "Train Data에서 변환 기준을 구한 뒤 바로 적용하는 fit()과 transform()의 결합이다.",
+    "Pipeline": "결측치 처리, Encoding, Scaling과 모델을 정해진 순서로 연결하는 구조다. 회귀와 분류 모두에서 사용할 수 있으며 Train Data에서 학습한 전처리 기준을 Test Data와 새로운 데이터에 빠짐없이 동일하게 적용하는 데 사용한다.",
     "Data Leakage": "전처리 기준을 정할 때 Test Data처럼 알 수 없어야 하는 정보가 들어가는 문제다.",
 }
 
-STEP_NAMES = ["1. Train/Test", "2. Missing", "3. Encoding", "4. Scaling", "5. Data Leakage"]
+STEP_NAMES = [
+    "1. Train/Test", "2. Missing", "3. Encoding", "4. Scaling",
+    "5. Data Leakage", "6. Pipeline",
+]
 
 
 class PreprocessingPage(QWidget):
+    preprocessing_updated = Signal(object)
+
     # Preprocessing Lab의 상태와 UI를 구성
     def __init__(self) -> None:
         super().__init__()
@@ -57,14 +65,15 @@ class PreprocessingPage(QWidget):
         self.y_train = pd.Series(dtype=object)
         self.y_test = pd.Series(dtype=object)
         self.target_mapping: dict[str, int] | None = None
+        self.preprocessing_artifacts = PreprocessingArtifacts()
         self.scaling_base_train = pd.DataFrame()
         self.scaling_base_test = pd.DataFrame()
 
         self._setup_ui()
         self.set_dataset(
-            load_builtin_dataset("Student Basic"),
-            "Student Basic",
-            "passed",
+            load_builtin_dataset("Preprocessing Sample"),
+            "Preprocessing Sample",
+            "result",
             "classification",
             use_default_notice=True,
         )
@@ -130,6 +139,11 @@ class PreprocessingPage(QWidget):
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
+        self.preprocessing_basis_label = QLabel()
+        self.preprocessing_basis_label.setObjectName("smallText")
+        self.preprocessing_basis_label.setWordWrap(True)
+        layout.addWidget(self.preprocessing_basis_label)
+
     # 전처리에 필요한 개념 버튼과 설명을 구성
     def _create_concept_section(self, layout: QVBoxLayout) -> None:
         layout.addWidget(self._create_section_badge("Concept"), alignment=Qt.AlignmentFlag.AlignLeft)
@@ -185,6 +199,7 @@ class PreprocessingPage(QWidget):
             self._create_encoding_step(),
             self._create_scaling_step(),
             self._create_leakage_step(),
+            self._create_pipeline_step(),
         ]
 
         step_container = QWidget()
@@ -502,6 +517,43 @@ class PreprocessingPage(QWidget):
         layout.addStretch()
         return page
 
+    # 선택한 전처리를 ColumnTransformer와 Pipeline으로 통합하는 화면을 구성
+    def _create_pipeline_step(self) -> QWidget:
+        page, layout = self._create_step_page(
+            "Preprocessing Pipeline",
+            "앞에서 개별적으로 실습한 결측치 처리, Encoding, Scaling을 하나의 Pipeline으로 다시 구성한다. "
+            "실제 학습에서는 Pipeline이 원본 Train Data의 전처리와 모델 학습을 정해진 순서로 실행한다.",
+        )
+
+        action_layout = QHBoxLayout()
+        action_layout.setSpacing(SPACE_SM)
+        self.pipeline_result_label = QLabel()
+        self.pipeline_result_label.setObjectName("smallText")
+        self.pipeline_result_label.setWordWrap(True)
+        action_layout.addWidget(self.pipeline_result_label, 1)
+
+        self.pipeline_apply_button = QPushButton("Pipeline으로 다시 구성")
+        self.pipeline_apply_button.setObjectName("dataButton")
+        self.pipeline_apply_button.clicked.connect(self._apply_pipeline)
+        action_layout.addWidget(self.pipeline_apply_button)
+        layout.addLayout(action_layout)
+
+        explanation = QLabel(
+            "ColumnTransformer는 Column마다 서로 다른 전처리를 적용한다.<br>"
+            "Pipeline은 각 전처리를 정해진 순서로 실행하여 새로운 데이터에도 같은 기준을 적용한다.<br>"
+            "전처리 Pipeline은 회귀 모델과 분류 모델에 공통으로 연결할 수 있다.<br>"
+            "Target LabelEncoder는 X를 변환하는 Pipeline과 별도로 y에 적용한다."
+        )
+        explanation.setObjectName("preprocessingInfoCard")
+        explanation.setWordWrap(True)
+        layout.addWidget(explanation)
+
+        pipeline_code_card, self.pipeline_code_label = self._create_code_block()
+        layout.addWidget(pipeline_code_card)
+        layout.addStretch()
+        self._update_pipeline_preview()
+        return page
+
     # Data Lab에서 전달받은 Dataset을 복사해 현재 실습 데이터로 설정
     def set_dataset(
         self,
@@ -519,7 +571,7 @@ class PreprocessingPage(QWidget):
 
         if use_default_notice:
             self.current_dataset_label.setText(
-                "선택된 Dataset이 없어 프로그램에 포함된 Student Basic을 사용합니다."
+                "선택된 Dataset이 없어 프로그램에 포함된 Preprocessing Sample을 사용합니다."
             )
         else:
             self.current_dataset_label.setText(dataset_name)
@@ -532,11 +584,27 @@ class PreprocessingPage(QWidget):
             f"Target: {escape(str(target_text))} · Missing Values: {missing_count}"
         )
 
-        can_split = target_column is not None and target_column in self.dataframe.columns
+        has_target = target_column is not None and target_column in self.dataframe.columns
+        can_split = has_target and task_type in {"classification", "regression"}
+        target_missing_count = (
+            int(self.dataframe[target_column].isna().sum()) if has_target else 0
+        )
         self.stratify_checkbox.setEnabled(can_split and task_type == "classification")
         self.stratify_checkbox.setChecked(can_split and task_type == "classification")
+        self.split_button.setEnabled(can_split and target_missing_count == 0)
 
-        if can_split:
+        if has_target and task_type == "unknown":
+            self._reset_split_state()
+            self.status_label.setText(
+                "Data Lab에서 Local CSV의 문제 유형을 Classification 또는 Regression으로 선택해 주세요."
+            )
+        elif can_split and target_missing_count:
+            self._reset_split_state()
+            self.status_label.setText(
+                f"Target에 결측치가 {target_missing_count}개 있습니다. "
+                "Target 값을 확인하거나 해당 Sample을 원본 데이터에서 제외해 주세요."
+            )
+        elif can_split:
             self._reset_split_state()
             self.status_label.setText(
                 "아래 Preprocessing Workflow의 1. Train/Test에서 "
@@ -547,10 +615,20 @@ class PreprocessingPage(QWidget):
             self.status_label.setText("Target이 없는 Dataset은 현재 Train/Test 전처리 실습에서 사용할 수 없습니다.")
 
         self._show_concept(next((name for name, button in self.concept_buttons.items() if button.isChecked()), "Preprocessing"))
+        self._update_preprocessing_basis_label()
+        self._emit_preprocessing_result()
 
     # 선택한 비율과 난수 기준으로 Dataset을 Train/Test로 분리
     def _run_split(self) -> None:
         if self.target_column is None or self.dataframe.empty:
+            return
+
+        target_missing_count = int(self.dataframe[self.target_column].isna().sum())
+        if target_missing_count:
+            self.status_label.setText(
+                f"Train/Test 분리 실패: Target에 결측치가 {target_missing_count}개 있습니다. "
+                "Target 값을 확인하거나 해당 Sample을 제외해 주세요."
+            )
             return
 
         try:
@@ -572,6 +650,10 @@ class PreprocessingPage(QWidget):
         self.y_train = self.y_train_raw.copy()
         self.y_test = self.y_test_raw.copy()
         self.target_mapping = None
+        self.preprocessing_artifacts = PreprocessingArtifacts(
+            input_features=tuple(map(str, self.feature_columns)),
+            output_features=tuple(map(str, self.x_train.columns)),
+        )
         self._set_scaling_base()
 
         train_ratios = self._format_class_ratios(self.y_train_raw)
@@ -612,6 +694,7 @@ class PreprocessingPage(QWidget):
         self.status_label.setText(
             f"분리 완료: Train {len(self.x_train_raw)} Samples / Test {len(self.x_test_raw)} Samples"
         )
+        self._emit_preprocessing_result()
 
     # Dataset을 불러온 뒤 사용자가 분리 설정을 적용하기 전 상태로 초기화
     def _reset_split_state(self) -> None:
@@ -624,6 +707,7 @@ class PreprocessingPage(QWidget):
         self.y_train = pd.Series(dtype=object)
         self.y_test = pd.Series(dtype=object)
         self.target_mapping = None
+        self.preprocessing_artifacts = PreprocessingArtifacts()
         self.scaling_base_train = pd.DataFrame()
         self.scaling_base_test = pd.DataFrame()
 
@@ -661,7 +745,7 @@ class PreprocessingPage(QWidget):
         )
 
         try:
-            self.x_train, self.x_test, statistic = impute_feature(
+            self.x_train, self.x_test, statistic, imputer = impute_feature(
                 train_source,
                 test_source,
                 column,
@@ -690,8 +774,12 @@ class PreprocessingPage(QWidget):
             f"X_test[{column!r}] = imputer.transform(X_test[[{column!r}]]).ravel()"
         )
         self._set_scaling_base()
+        self.preprocessing_artifacts.feature_imputers[str(column)] = imputer
+        self.preprocessing_artifacts.preprocessor = None
+        self._update_artifact_columns()
         self._refresh_preprocessing_controls()
         self.status_label.setText(f"{column} 결측치 처리가 완료되었습니다.")
+        self._emit_preprocessing_result()
 
     # 문자열 Target을 숫자 Class로 변환
     def _apply_label_encoder(self) -> None:
@@ -700,8 +788,12 @@ class PreprocessingPage(QWidget):
             return
 
         try:
-            self.y_train, self.y_test, mapping = encode_target(self.y_train_raw, self.y_test_raw)
+            self.y_train, self.y_test, mapping, encoder = encode_target(
+                self.y_train_raw,
+                self.y_test_raw,
+            )
             self.target_mapping = mapping
+            self.preprocessing_artifacts.target_encoder = encoder
         except ValueError as error:
             self.label_mapping_label.setText(f"변환 실패: {error}")
             return
@@ -712,6 +804,7 @@ class PreprocessingPage(QWidget):
         self._populate_table(self.label_after_table, self.y_train.to_frame())
         self._update_encoding_code()
         self.status_label.setText("Target Label Encoding이 완료되었습니다.")
+        self._emit_preprocessing_result()
 
     # 선택한 범주형 Feature를 One-Hot Encoding
     def _apply_one_hot_encoder(self) -> None:
@@ -727,18 +820,22 @@ class PreprocessingPage(QWidget):
             return
 
         before = self.x_train[[column]].copy()
-        self.x_train, self.x_test, encoded_columns = one_hot_encode_feature(
+        self.x_train, self.x_test, encoded_columns, encoder = one_hot_encode_feature(
             self.x_train,
             self.x_test,
             column,
         )
+        self.preprocessing_artifacts.feature_encoders[str(column)] = encoder
+        self.preprocessing_artifacts.preprocessor = None
         self._populate_table(self.one_hot_before_table, before)
         self._populate_table(self.one_hot_after_table, self.x_train[encoded_columns])
         self._set_scaling_base()
+        self._update_artifact_columns()
         self._refresh_preprocessing_controls()
         self.one_hot_result_label.setText("생성된 Feature: " + ", ".join(encoded_columns))
         self._update_encoding_code(column)
         self.status_label.setText(f"{column} One-Hot Encoding이 완료되었습니다.")
+        self._emit_preprocessing_result()
 
     # 선택한 Scaling 방법을 숫자형 Feature에 적용
     def _apply_scaler(self) -> None:
@@ -758,6 +855,10 @@ class PreprocessingPage(QWidget):
             columns,
             method,
         )
+        self.preprocessing_artifacts.scaler = scaler
+        self.preprocessing_artifacts.scaler_columns = tuple(map(str, columns)) if scaler else ()
+        self.preprocessing_artifacts.preprocessor = None
+        self._update_artifact_columns()
         self._populate_table(self.scaling_before_table, before)
         self._populate_table(self.scaling_after_table, self.x_train[columns].round(3))
 
@@ -789,6 +890,195 @@ class PreprocessingPage(QWidget):
             self.scaling_code_label.setText("# Scaling을 적용하지 않는다.")
 
         self.status_label.setText("Scaling 설정이 적용되었습니다.")
+        self._emit_preprocessing_result()
+
+    # 현재 선택한 모든 X 전처리를 하나의 ColumnTransformer로 다시 적용
+    def _apply_pipeline(self) -> None:
+        if self.x_train_raw.empty or self.x_test_raw.empty:
+            self.pipeline_result_label.setText(
+                "먼저 1. Train/Test에서 데이터를 분리해 주세요."
+            )
+            return
+
+        try:
+            train_result, test_result, preprocessor = apply_preprocessing_pipeline(
+                self.x_train_raw,
+                self.x_test_raw,
+                self.preprocessing_artifacts,
+            )
+        except (TypeError, ValueError) as error:
+            self.pipeline_result_label.setText(f"Pipeline 구성 실패: {error}")
+            return
+
+        self.x_train = train_result
+        self.x_test = test_result
+        self.preprocessing_artifacts.preprocessor = preprocessor
+        self._update_artifact_columns()
+        self.pipeline_result_label.setText(
+            f"Pipeline 구성 완료: {len(self.preprocessing_artifacts.input_features)}개 입력 Feature → "
+            f"{len(self.preprocessing_artifacts.output_features)}개 출력 Feature"
+        )
+        self.status_label.setText(
+            "앞에서 선택한 전처리를 Pipeline으로 다시 구성했습니다. "
+            "Train Data에서 기준을 학습하고 Test Data에는 같은 기준을 적용했습니다."
+        )
+        self._emit_preprocessing_result()
+
+    # 현재 전처리 선택을 실행 가능한 ColumnTransformer 코드로 변환
+    def _build_pipeline_code(self) -> str:
+        artifacts = self.preprocessing_artifacts
+        code = [
+            "from sklearn.compose import ColumnTransformer",
+            "from sklearn.impute import SimpleImputer",
+            "from sklearn.pipeline import Pipeline",
+            "from sklearn.preprocessing import (",
+            "    LabelEncoder, MinMaxScaler, OneHotEncoder, StandardScaler,",
+            ")",
+            "",
+        ]
+        transformer_rows = []
+        for index, column in enumerate(artifacts.input_features):
+            steps = []
+            imputer = artifacts.feature_imputers.get(column)
+            if imputer is not None:
+                steps.append(
+                    f"        ('imputer', SimpleImputer(strategy={imputer.strategy!r})),"
+                )
+            if column in artifacts.feature_encoders:
+                steps.append(
+                    "        ('encoder', OneHotEncoder(handle_unknown='ignore', "
+                    "sparse_output=False)),"
+                )
+            if artifacts.scaler is not None and column in artifacts.scaler_columns:
+                steps.append(f"        ('scaler', {type(artifacts.scaler).__name__}()),")
+
+            if not steps:
+                continue
+            variable = f"feature_{index}_pipeline"
+            code.extend([f"{variable} = Pipeline([", *steps, "])", ""])
+            transformer_rows.append(
+                f"        ('feature_{index}', {variable}, [{column!r}]),"
+            )
+
+        code.extend([
+            "preprocessor = ColumnTransformer(",
+            "    transformers=[",
+            *transformer_rows,
+            "    ],",
+            "    remainder='passthrough',",
+            "    verbose_feature_names_out=False,",
+            ").set_output(transform='pandas')",
+            "",
+            "X_train_processed = preprocessor.fit_transform(X_train)",
+            "X_test_processed = preprocessor.transform(X_test)",
+        ])
+
+        if artifacts.target_encoder is not None:
+            code.extend([
+                "",
+                "# Target은 X 전처리 Pipeline과 별도로 변환한다.",
+                "label_encoder = LabelEncoder()",
+                "y_train_processed = label_encoder.fit_transform(y_train)",
+                "y_test_processed = label_encoder.transform(y_test)",
+            ])
+        return "\n".join(code)
+
+    # 현재 Pipeline 구성과 아직 처리하지 않은 항목을 화면에 안내
+    def _update_pipeline_preview(self) -> None:
+        if not hasattr(self, "pipeline_result_label"):
+            return
+
+        split_completed = not self.x_train_raw.empty
+        self.pipeline_apply_button.setEnabled(split_completed)
+        self.pipeline_code_label.setText(self._build_pipeline_code())
+        if not split_completed:
+            self.pipeline_result_label.setText(
+                "Train/Test 분리 후 적용한 전처리 설정을 Pipeline 코드로 확인할 수 있습니다."
+            )
+            return
+
+        artifacts = self.preprocessing_artifacts
+        steps = []
+        if artifacts.feature_imputers:
+            steps.append(f"SimpleImputer {len(artifacts.feature_imputers)}개")
+        if artifacts.feature_encoders:
+            steps.append(f"OneHotEncoder {len(artifacts.feature_encoders)}개")
+        if artifacts.scaler is not None:
+            steps.append(type(artifacts.scaler).__name__)
+        if artifacts.preprocessor is not None:
+            steps.append("ColumnTransformer Pipeline")
+        if artifacts.target_encoder is not None:
+            steps.append("LabelEncoder(y 별도 적용)")
+
+        unhandled_missing = [
+            str(column)
+            for column in artifacts.input_features
+            if (
+                self.x_train_raw[column].isna().any()
+                or self.x_test_raw[column].isna().any()
+            )
+            and column not in artifacts.feature_imputers
+        ]
+        unencoded_text = [
+            str(column)
+            for column in artifacts.input_features
+            if not pd.api.types.is_numeric_dtype(self.x_train_raw[column])
+            and column not in artifacts.feature_encoders
+        ]
+        messages = ["현재 구성: " + (" → ".join(steps) if steps else "적용된 변환 없음")]
+        if unhandled_missing:
+            messages.append("결측치 처리가 필요한 Feature: " + ", ".join(unhandled_missing))
+        if unencoded_text:
+            messages.append("Encoding이 필요한 문자열 Feature: " + ", ".join(unencoded_text))
+        self.pipeline_result_label.setText("<br>".join(messages))
+
+    # 현재 전처리 결과를 다음 학습 Stage로 전달
+    def _emit_preprocessing_result(self) -> None:
+        self._update_pipeline_preview()
+        self._update_preprocessing_basis_label()
+        self.preprocessing_updated.emit(
+            PreprocessingResult(
+                dataset_name=self.dataset_name,
+                target_column=self.target_column,
+                task_type=self.task_type,
+                x_train=self.x_train.copy(deep=True),
+                x_test=self.x_test.copy(deep=True),
+                y_train=self.y_train.copy(deep=True),
+                y_test=self.y_test.copy(deep=True),
+                artifacts=deepcopy(self.preprocessing_artifacts),
+            )
+        )
+
+    # 현재 변환 결과의 입력·출력 Feature 순서를 전처리 기준에 함께 저장
+    def _update_artifact_columns(self) -> None:
+        self.preprocessing_artifacts.input_features = tuple(map(str, self.feature_columns))
+        self.preprocessing_artifacts.output_features = tuple(map(str, self.x_train.columns))
+
+    # 다음 Stage와 새로운 데이터에 재사용할 전처리 기준을 요약
+    def _update_preprocessing_basis_label(self) -> None:
+        artifacts = self.preprocessing_artifacts
+        if self.x_train.empty:
+            self.preprocessing_basis_label.setText(
+                "재사용할 전처리 기준: Train/Test 분리 후 각 전처리 단계를 적용하면 여기에 표시됩니다."
+            )
+            return
+
+        steps = []
+        if artifacts.feature_imputers:
+            steps.append(f"SimpleImputer {len(artifacts.feature_imputers)}개")
+        if artifacts.feature_encoders:
+            steps.append(f"OneHotEncoder {len(artifacts.feature_encoders)}개")
+        if artifacts.target_encoder is not None:
+            steps.append("LabelEncoder")
+        if artifacts.scaler is not None:
+            steps.append(type(artifacts.scaler).__name__)
+        if artifacts.preprocessor is not None:
+            steps.append("ColumnTransformer Pipeline")
+        basis = " → ".join(steps) if steps else "적용된 변환 없음"
+        self.preprocessing_basis_label.setText(
+            "재사용할 전처리 기준: " + basis
+            + "<br>Train Data에서 학습한 객체를 다음 Stage와 새로운 데이터에 동일하게 적용합니다."
+        )
 
     # 선택한 숫자형 Feature에서 안전한 fit과 누수가 있는 fit을 비교
     def _update_leakage_comparison(self, _index: int = -1) -> None:

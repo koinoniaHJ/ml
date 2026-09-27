@@ -88,6 +88,9 @@ class HomePage(QWidget):
         layout.addWidget(self._create_learning_methods_section())
         layout.addSpacing(SPACE_XL)
 
+        layout.addWidget(self._create_workflow_section())
+        layout.addSpacing(SPACE_XL)
+
         layout.addWidget(self._create_dataset_selection_section())
 
     # AI 안에 ML, ML 안에 DL이 포함되는 관계 구역을 생성
@@ -216,6 +219,38 @@ class HomePage(QWidget):
 
         section_layout.addLayout(definitions_layout)
 
+        return section
+
+    # 머신러닝 실습의 전체 흐름과 각 데이터의 역할을 안내
+    def _create_workflow_section(self) -> QFrame:
+        section = QFrame()
+        section.setObjectName("programComparisonSection")
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
+        section_layout.setSpacing(SPACE_SM)
+
+        title = QLabel("머신러닝 실습 흐름")
+        title.setObjectName("learningSectionTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        section_layout.addWidget(title)
+
+        flow = self._create_rich_text_label(
+            "문제와 평가 기준 정의 → 데이터 탐색 → Train/Test 분리 → 전처리 → 모델 학습 → "
+            "Validation·Cross Validation으로 모델 선택 → Test Data로 최종 평가",
+            "learningIntroText",
+            Qt.AlignmentFlag.AlignCenter,
+        )
+        flow.setWordWrap(True)
+        section_layout.addWidget(flow)
+
+        explanation = self._create_rich_text_label(
+            "Test Data는 선택이 끝난 모델의 일반화 성능을 확인하는 데 사용한다.<br>"
+            "실습 전 과정에서 데이터 품질, 편향, 개인정보와 결과 재현 가능성도 함께 확인한다.",
+            "programComparisonDefinitions",
+            Qt.AlignmentFlag.AlignCenter,
+        )
+        explanation.setWordWrap(True)
+        section_layout.addWidget(explanation)
         return section
 
     # 지도학습·비지도학습·강화학습 설명 구역을 생성

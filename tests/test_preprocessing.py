@@ -1,9 +1,12 @@
 import numpy as np
+import pandas as pd
+import pytest
 
 from ml.data_loader import load_builtin_dataset
 from ml.preprocessing import (
-    compare_scaler_fit, encode_target, get_class_ratios, impute_feature,
-    one_hot_encode_feature, scale_features, split_dataset,
+    PreprocessingArtifacts, apply_preprocessing_pipeline, compare_scaler_fit,
+    encode_target, get_class_ratios, impute_feature, one_hot_encode_feature,
+    scale_features, split_dataset,
 )
 
 
@@ -34,7 +37,7 @@ def test_split_dataset_preserves_sample_count_and_class_ratio() -> None:
 
 def test_imputer_removes_missing_values_using_train_statistic() -> None:
     train_data, test_data, _, _ = _split_preprocessing_sample()
-    train_result, test_result, statistic = impute_feature(
+    train_result, test_result, statistic, _ = impute_feature(
         train_data,
         test_data,
         "study_time",
@@ -48,18 +51,18 @@ def test_imputer_removes_missing_values_using_train_statistic() -> None:
 
 def test_label_and_one_hot_encoding_results() -> None:
     train_data, test_data, train_target, test_target = _split_preprocessing_sample()
-    train_data, test_data, _ = impute_feature(
+    train_data, test_data, _, _ = impute_feature(
         train_data,
         test_data,
         "study_place",
         "most_frequent",
     )
 
-    encoded_train_target, encoded_test_target, mapping = encode_target(
+    encoded_train_target, encoded_test_target, mapping, _ = encode_target(
         train_target,
         test_target,
     )
-    encoded_train, encoded_test, encoded_columns = one_hot_encode_feature(
+    encoded_train, encoded_test, encoded_columns, _ = one_hot_encode_feature(
         train_data,
         test_data,
         "study_place",
@@ -102,3 +105,80 @@ def test_data_leakage_demo_uses_different_fit_ranges() -> None:
 
     assert not np.isclose(comparison["train_mean"], comparison["full_mean"])
     assert not np.isclose(comparison["safe_test_first"], comparison["leaked_test_first"])
+
+
+def test_split_dataset_rejects_missing_target() -> None:
+    dataframe = pd.DataFrame({"feature": [1, 2, 3], "target": [10, np.nan, 30]})
+
+    with pytest.raises(ValueError, match="Target에 결측치가 1개"):
+        split_dataset(
+            dataframe,
+            ["feature"],
+            "target",
+            test_size=0.33,
+            random_state=42,
+            use_stratify=False,
+        )
+
+
+def test_preprocessing_artifacts_reuse_train_transformers() -> None:
+    raw_train, raw_test, _, _ = _split_preprocessing_sample()
+    train_data = raw_train.copy()
+    test_data = raw_test.copy()
+    imputers = {}
+    for column, strategy in (
+        ("study_time", "mean"),
+        ("attendance", "mean"),
+        ("study_place", "most_frequent"),
+    ):
+        train_data, test_data, _, imputer = impute_feature(
+            train_data,
+            test_data,
+            column,
+            strategy,
+        )
+        imputers[column] = imputer
+    encoded_train, encoded_test, _, encoder = one_hot_encode_feature(
+        train_data,
+        test_data,
+        "study_place",
+    )
+    scaled_train, _, scaler = scale_features(
+        encoded_train,
+        encoded_test,
+        ["study_time", "attendance", "sleep_hours"],
+        "standard",
+    )
+    artifacts = PreprocessingArtifacts(
+        input_features=tuple(FEATURE_COLUMNS),
+        output_features=tuple(scaled_train.columns),
+        feature_imputers=imputers,
+        feature_encoders={"study_place": encoder},
+        scaler=scaler,
+        scaler_columns=("study_time", "attendance", "sleep_hours"),
+    )
+    new_data = pd.DataFrame({
+        "study_time": [5.0],
+        "attendance": [88.0],
+        "study_place": ["new_place"],
+        "sleep_hours": [7.0],
+    })
+
+    pipeline_train, _, preprocessor = apply_preprocessing_pipeline(
+        raw_train,
+        raw_test,
+        artifacts,
+    )
+    artifacts.preprocessor = preprocessor
+    artifacts.output_features = tuple(pipeline_train.columns)
+    transformed = artifacts.transform_features(new_data)
+
+    assert set(pipeline_train.columns) == set(scaled_train.columns)
+    for column in scaled_train.columns:
+        assert np.allclose(
+            pipeline_train[column].to_numpy(dtype=float),
+            scaled_train[column].to_numpy(dtype=float),
+        )
+    assert transformed.columns.tolist() == pipeline_train.columns.tolist()
+    assert transformed.isna().sum().sum() == 0
+    assert transformed.filter(like="study_place_").to_numpy().sum() == 0

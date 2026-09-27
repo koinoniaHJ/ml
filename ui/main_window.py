@@ -13,6 +13,7 @@ from ui.pages.data_lab_page import DataLabPage
 from ui.pages.home_page import HomePage
 from ui.pages.placeholder_page import PlaceholderPage
 from ui.pages.preprocessing_page import PreprocessingPage
+from ui.pages.regression_page import RegressionPage
 
 
 class MainWindow(QMainWindow):
@@ -83,7 +84,6 @@ class MainWindow(QMainWindow):
             ("preprocessing", "Preprocessing", "(데이터 전처리)"),
             ("regression", "Regression", "(회귀)"),
             ("classification", "Classification", "(분류)"),
-            ("evaluation", "Evaluation", "(모델 평가)"),
             ("selection", "Model Selection", "(모델 선택)"),
             ("unsupervised", "Unsupervised", "(비지도 학습)"),
             ("final", "Final Experiment", "(종합 실습)"),
@@ -136,14 +136,14 @@ class MainWindow(QMainWindow):
         self.home_page = HomePage()
         self.data_lab_page = DataLabPage()
         self.preprocessing_page = PreprocessingPage()
+        self.regression_page = RegressionPage()
 
         self.pages = {
             "home": self.home_page,
             "data": self.data_lab_page,
             "preprocessing": self.preprocessing_page,
-            "regression": PlaceholderPage("Regression"),
+            "regression": self.regression_page,
             "classification": PlaceholderPage("Classification"),
-            "evaluation": PlaceholderPage("Evaluation"),
             "selection": PlaceholderPage("Model Selection"),
             "unsupervised": PlaceholderPage("Unsupervised"),
             "final": PlaceholderPage("Final Experiment"),
@@ -154,6 +154,9 @@ class MainWindow(QMainWindow):
 
         self.home_page.data_source_selected.connect(self._handle_data_source_selected)
         self.data_lab_page.dataset_loaded.connect(self.preprocessing_page.set_dataset)
+        self.preprocessing_page.preprocessing_updated.connect(
+            self.regression_page.set_preprocessing_result
+        )
         layout.addWidget(self.page_stack)
 
         return page_frame
