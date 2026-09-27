@@ -12,6 +12,7 @@ from common.theme import (
 from ui.pages.data_lab_page import DataLabPage
 from ui.pages.classification_page import ClassificationPage
 from ui.pages.home_page import HomePage
+from ui.pages.model_selection_page import ModelSelectionPage
 from ui.pages.placeholder_page import PlaceholderPage
 from ui.pages.preprocessing_page import PreprocessingPage
 from ui.pages.regression_page import RegressionPage
@@ -139,6 +140,7 @@ class MainWindow(QMainWindow):
         self.preprocessing_page = PreprocessingPage()
         self.regression_page = RegressionPage()
         self.classification_page = ClassificationPage()
+        self.model_selection_page = ModelSelectionPage()
 
         self.pages = {
             "home": self.home_page,
@@ -146,7 +148,7 @@ class MainWindow(QMainWindow):
             "preprocessing": self.preprocessing_page,
             "regression": self.regression_page,
             "classification": self.classification_page,
-            "selection": PlaceholderPage("Model Selection"),
+            "selection": self.model_selection_page,
             "unsupervised": PlaceholderPage("Unsupervised"),
             "final": PlaceholderPage("Final Experiment"),
         }
@@ -161,6 +163,9 @@ class MainWindow(QMainWindow):
         )
         self.preprocessing_page.preprocessing_updated.connect(
             self.classification_page.set_preprocessing_result
+        )
+        self.preprocessing_page.preprocessing_updated.connect(
+            self.model_selection_page.set_preprocessing_result
         )
         layout.addWidget(self.page_stack)
 

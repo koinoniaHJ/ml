@@ -1046,6 +1046,10 @@ class PreprocessingPage(QWidget):
                 y_train=self.y_train.copy(deep=True),
                 y_test=self.y_test.copy(deep=True),
                 artifacts=deepcopy(self.preprocessing_artifacts),
+                raw_x_train=self.x_train_raw.copy(deep=True),
+                raw_x_test=self.x_test_raw.copy(deep=True),
+                raw_y_train=self.y_train_raw.copy(deep=True),
+                raw_y_test=self.y_test_raw.copy(deep=True),
             )
         )
 

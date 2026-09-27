@@ -92,6 +92,10 @@ class PreprocessingResult:
     y_train: pd.Series
     y_test: pd.Series
     artifacts: PreprocessingArtifacts = field(default_factory=PreprocessingArtifacts)
+    raw_x_train: pd.DataFrame = field(default_factory=pd.DataFrame)
+    raw_x_test: pd.DataFrame = field(default_factory=pd.DataFrame)
+    raw_y_train: pd.Series = field(default_factory=lambda: pd.Series(dtype=object))
+    raw_y_test: pd.Series = field(default_factory=lambda: pd.Series(dtype=object))
 
 
 def split_dataset(
