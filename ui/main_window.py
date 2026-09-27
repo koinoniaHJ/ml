@@ -16,6 +16,7 @@ from ui.pages.model_selection_page import ModelSelectionPage
 from ui.pages.placeholder_page import PlaceholderPage
 from ui.pages.preprocessing_page import PreprocessingPage
 from ui.pages.regression_page import RegressionPage
+from ui.pages.unsupervised_page import UnsupervisedPage
 
 
 class MainWindow(QMainWindow):
@@ -141,6 +142,7 @@ class MainWindow(QMainWindow):
         self.regression_page = RegressionPage()
         self.classification_page = ClassificationPage()
         self.model_selection_page = ModelSelectionPage()
+        self.unsupervised_page = UnsupervisedPage()
 
         self.pages = {
             "home": self.home_page,
@@ -149,7 +151,7 @@ class MainWindow(QMainWindow):
             "regression": self.regression_page,
             "classification": self.classification_page,
             "selection": self.model_selection_page,
-            "unsupervised": PlaceholderPage("Unsupervised"),
+            "unsupervised": self.unsupervised_page,
             "final": PlaceholderPage("Final Experiment"),
         }
 
@@ -158,6 +160,7 @@ class MainWindow(QMainWindow):
 
         self.home_page.data_source_selected.connect(self._handle_data_source_selected)
         self.data_lab_page.dataset_loaded.connect(self.preprocessing_page.set_dataset)
+        self.data_lab_page.dataset_loaded.connect(self.unsupervised_page.set_dataset)
         self.preprocessing_page.preprocessing_updated.connect(
             self.regression_page.set_preprocessing_result
         )
